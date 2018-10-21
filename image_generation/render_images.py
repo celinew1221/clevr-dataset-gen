@@ -6,7 +6,7 @@
 # of patent rights can be found in the PATENTS file in the same directory.
 
 from __future__ import print_function
-import math, sys, random, argparse, json, os, tempfile
+import math, sys, random, argparse, json, os, tempfile, copy
 from datetime import datetime as dt
 from collections import Counter
 
@@ -33,7 +33,7 @@ if INSIDE_BLENDER:
     import utils
   except ImportError as e:
     print("\nERROR")
-    print("Running render_images.py from Blender and cannot import utils.py.") 
+    print("Running render_images.py from Blender and cannot import utils.py.")
     print("You may need to add a .pth file to the site-packages of Blender's")
     print("bundled python with a command like this:\n")
     print("echo $PWD >> $BLENDER/$VERSION/python/lib/python3.5/site-packages/clevr.pth")
@@ -95,6 +95,12 @@ parser.add_argument('--split', default='new',
     help="Name of the split for which we are rendering. This will be added to " +
          "the names of rendered images, and will also be stored in the JSON " +
          "scene structure for each image.")
+parser.add_argument('--asplit', default='cor',
+    help="Name of the split for the corresponding image we are rendering. This will be added to " +
+         "the names of rendered images, and will also be stored in the JSON " +
+         "scene structure for each image.")
+parser.add_argument('--csplit', default='cb',
+    help="Name of the split for the combined json file.")
 parser.add_argument('--output_image_dir', default='../output/images/',
     help="The directory where output images will be stored. It will be " +
          "created if it does not exist.")
@@ -103,6 +109,10 @@ parser.add_argument('--output_scene_dir', default='../output/scenes/',
          "It will be created if it does not exist.")
 parser.add_argument('--output_scene_file', default='../output/CLEVR_scenes.json',
     help="Path to write a single JSON file containing all scene information")
+parser.add_argument('--output_cb_scene_file', default='../output/CLEVR_cb_scenes.json',
+    help="Path to write a single JSON file containing all combined scene information")
+parser.add_argument('--output_count_file', default='../output/CLEVR_counts.json',
+    help="Path to write a single JSON file containing number of action objects information")
 parser.add_argument('--output_blend_dir', default='output/blendfiles',
     help="The directory where blender scene files will be stored, if the " +
          "user requested that these files be saved using the " +
@@ -123,6 +133,8 @@ parser.add_argument('--date', default=dt.today().strftime("%m/%d/%Y"),
          "defaults to today's date")
 
 # Rendering options
+parser.add_argument('--action', default=1, type=int,
+    help="Enable action rendering.")
 parser.add_argument('--use_gpu', default=0, type=int,
     help="Setting --use_gpu 1 enables GPU-accelerated rendering using CUDA. " +
          "You must have an NVIDIA GPU with the CUDA toolkit installed for " +
@@ -152,9 +164,14 @@ parser.add_argument('--render_tile_size', default=256, type=int,
          "rendering may achieve better performance using smaller tile sizes " +
          "while larger tile sizes may be optimal for GPU-based rendering.")
 
+SIZE_CHANGED, SIZE_UNCHANGED, COLOR_CHANGED, COLOR_UNCHANGED, MAT_CHANGED, MAT_UNCHANGED \
+  = "size_changed", "size_unchanged", "color_changed", "color_unchanged", "mat_changed", "mat_unchanged"
+counts = {SIZE_CHANGED: 0, SIZE_UNCHANGED: 0, COLOR_CHANGED: 0,
+          COLOR_UNCHANGED: 0, MAT_CHANGED: 0, MAT_UNCHANGED: 0}
+
 def main(args):
   num_digits = 6
-  prefix = '%s_%s_' % (args.filename_prefix, args.split)
+  prefix = '%s_%%s_' % (args.filename_prefix)
   img_template = '%s%%0%dd.png' % (prefix, num_digits)
   scene_template = '%s%%0%dd.json' % (prefix, num_digits)
   blend_template = '%s%%0%dd.blend' % (prefix, num_digits)
@@ -168,32 +185,50 @@ def main(args):
     os.makedirs(args.output_scene_dir)
   if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
     os.makedirs(args.output_blend_dir)
-  
+
   all_scene_paths = []
+  all_combined_scene_paths = []
   for i in range(args.num_images):
-    img_path = img_template % (i + args.start_idx)
-    scene_path = scene_template % (i + args.start_idx)
-    all_scene_paths.append(scene_path)
+    img_path = img_template
+    scene_path = scene_template
+    all_scene_paths.append(scene_path % (args.split, (i + args.start_idx)))
     blend_path = None
     if args.save_blendfiles == 1:
-      blend_path = blend_template % (i + args.start_idx)
+      blend_path = blend_template
     num_objects = random.randint(args.min_objects, args.max_objects)
-    render_scene(args,
-      num_objects=num_objects,
-      output_index=(i + args.start_idx),
-      output_split=args.split,
-      output_image=img_path,
-      output_scene=scene_path,
-      output_blendfile=blend_path,
-    )
+
+    if args.action:
+      all_combined_scene_paths.append(scene_path % (args.csplit, (i + args.start_idx)))
+      render_scene_with_action(args,
+        num_objects=num_objects,
+        output_index=(i + args.start_idx),
+        output_image=img_path,
+        output_scene=scene_path,
+        output_blendfile=blend_path,
+      )
+    else:
+      if blend_path is not None:
+        blend_path = blend_path % (args.split, (i + args.start_idx))
+      render_scene(args,
+        num_objects=num_objects,
+        output_index=(i + args.start_idx),
+        output_split=args.split,
+        output_image=img_path % (args.split, (i + args.start_idx)),
+        output_scene=scene_path % (args.split, (i + args.start_idx)),
+        output_blendfile=blend_path
+      )
 
   # After rendering all images, combine the JSON files for each scene into a
   # single JSON file.
   all_scenes = []
-  for scene_path in all_scene_paths:
+  all_combined_scenes = []
+  for scene_path, cb_scene_path in zip(all_scene_paths, all_combined_scene_paths):
     with open(scene_path, 'r') as f:
       all_scenes.append(json.load(f))
-  output = {
+    with open(cb_scene_path, 'r') as f:
+      all_combined_scenes.append(json.load(f))
+
+  all_scene_output = {
     'info': {
       'date': args.date,
       'version': args.version,
@@ -202,9 +237,24 @@ def main(args):
     },
     'scenes': all_scenes
   }
-  with open(args.output_scene_file, 'w') as f:
-    json.dump(output, f)
 
+  all_cb_scene_output = {
+    'info': {
+      'date': args.date,
+      'version': args.version,
+      'split': args.csplit,
+      'license': args.license,
+    },
+    'scenes': all_combined_scenes
+  }
+  with open(args.output_cb_scene_file, 'w') as f:
+    json.dump(all_cb_scene_output, f)
+
+  with open(args.output_scene_file, 'w') as f:
+    json.dump(all_scene_output, f)
+
+  with open(args.output_count_file, 'w') as f:
+    json.dump(counts, f)
 
 
 def render_scene(args,
@@ -307,7 +357,7 @@ def render_scene(args,
       bpy.data.objects['Lamp_Fill'].location[i] += rand(args.fill_light_jitter)
 
   # Now make some random objects
-  objects, blender_objects = add_random_objects(scene_struct, num_objects, args, camera)
+  objects, blender_objects, _ = add_random_objects(scene_struct, num_objects, args, camera)
 
   # Render the scene and dump the scene data structure
   scene_struct['objects'] = objects
@@ -324,6 +374,215 @@ def render_scene(args,
 
   if output_blendfile is not None:
     bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
+
+
+def render_scene_with_action(args,
+    num_objects=5,
+    output_index=0,
+    output_image='render.png',
+    output_scene='render_json',
+    output_blendfile=None,
+  ):
+  ##############################
+  # Regular rendering of a scene
+  ##############################
+  # save template for action
+  image_template = output_image
+  scene_template = output_scene
+  blendfile_template = output_blendfile
+
+  # set output filenames
+  output_image = output_image % (args.split, output_index)
+  output_scene = output_scene % (args.split, output_index)
+  if output_blendfile is not None:
+    output_blendfile = output_blendfile % (args.split, output_index)
+
+  # Load the main blendfile
+  bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
+
+  # Load materials
+  utils.load_materials(args.material_dir)
+
+  # Set render arguments so we can get pixel coordinates later.
+  # We use functionality specific to the CYCLES renderer so BLENDER_RENDER
+  # cannot be used.
+  render_args = bpy.context.scene.render
+  render_args.engine = "CYCLES"
+  render_args.filepath = output_image
+  render_args.resolution_x = args.width
+  render_args.resolution_y = args.height
+  render_args.resolution_percentage = 100
+  render_args.tile_x = args.render_tile_size
+  render_args.tile_y = args.render_tile_size
+  if args.use_gpu == 1:
+    # Blender changed the API for enabling CUDA at some point
+    if bpy.app.version < (2, 78, 0):
+      bpy.context.user_preferences.system.compute_device_type = 'CUDA'
+      bpy.context.user_preferences.system.compute_device = 'CUDA_0'
+    else:
+      cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
+      cycles_prefs.compute_device_type = 'CUDA'
+
+  # Some CYCLES-specific stuff
+  bpy.data.worlds['World'].cycles.sample_as_light = True
+  bpy.context.scene.cycles.blur_glossy = 2.0
+  bpy.context.scene.cycles.samples = args.render_num_samples
+  bpy.context.scene.cycles.transparent_min_bounces = args.render_min_bounces
+  bpy.context.scene.cycles.transparent_max_bounces = args.render_max_bounces
+  if args.use_gpu == 1:
+    bpy.context.scene.cycles.device = 'GPU'
+
+  # This will give ground-truth information about the scene and its objects
+  scene_struct = {
+      'split': args.split,
+      'image_index': output_index,
+      'image_filename': os.path.basename(output_image),
+      'objects': [],
+      'directions': {},
+  }
+
+  # Put a plane on the ground so we can compute cardinal directions
+  bpy.ops.mesh.primitive_plane_add(radius=5)
+  plane = bpy.context.object
+
+  def rand(L):
+    return 2.0 * L * (random.random() - 0.5)
+
+  # Add random jitter to camera position
+  if args.camera_jitter > 0:
+    for i in range(3):
+      bpy.data.objects['Camera'].location[i] += rand(args.camera_jitter)
+
+  # Figure out the left, up, and behind directions along the plane and record
+  # them in the scene structure
+  camera = bpy.data.objects['Camera']
+  plane_normal = plane.data.vertices[0].normal
+  cam_behind = camera.matrix_world.to_quaternion() * Vector((0, 0, -1))
+  cam_left = camera.matrix_world.to_quaternion() * Vector((-1, 0, 0))
+  cam_up = camera.matrix_world.to_quaternion() * Vector((0, 1, 0))
+  plane_behind = (cam_behind - cam_behind.project(plane_normal)).normalized()
+  plane_left = (cam_left - cam_left.project(plane_normal)).normalized()
+  plane_up = cam_up.project(plane_normal).normalized()
+
+  # Delete the plane; we only used it for normals anyway. The base scene file
+  # contains the actual ground plane.
+  utils.delete_object(plane)
+
+  # Save all six axis-aligned directions in the scene struct
+  scene_struct['directions']['behind'] = tuple(plane_behind)
+  scene_struct['directions']['front'] = tuple(-plane_behind)
+  scene_struct['directions']['left'] = tuple(plane_left)
+  scene_struct['directions']['right'] = tuple(-plane_left)
+  scene_struct['directions']['above'] = tuple(plane_up)
+  scene_struct['directions']['below'] = tuple(-plane_up)
+
+  # Add random jitter to lamp positions
+  if args.key_light_jitter > 0:
+    for i in range(3):
+      bpy.data.objects['Lamp_Key'].location[i] += rand(args.key_light_jitter)
+  if args.back_light_jitter > 0:
+    for i in range(3):
+      bpy.data.objects['Lamp_Back'].location[i] += rand(args.back_light_jitter)
+  if args.fill_light_jitter > 0:
+    for i in range(3):
+      bpy.data.objects['Lamp_Fill'].location[i] += rand(args.fill_light_jitter)
+
+  # Now make some random objects
+  objects, blender_objects, positions = add_random_objects(scene_struct, num_objects, args, camera)
+
+  # Render the scene and dump the scene data structure
+  scene_struct['objects'] = objects
+  scene_struct['relationships'] = compute_all_relationships(scene_struct)
+  while True:
+    try:
+      bpy.ops.render.render(write_still=True)
+      break
+    except Exception as e:
+      print(e)
+
+  with open(output_scene, 'w') as f:
+    json.dump(scene_struct, f, indent=2)
+
+  if output_blendfile is not None:
+    bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
+
+  #########################################################################
+  # Render a second image based on the first one: only one property changed
+  #########################################################################
+  if args.action:
+    # reset output filenames
+    output_image = image_template % (args.asplit, output_index)
+    output_scene = scene_template % (args.asplit, output_index)
+    if output_blendfile is not None:
+      output_blendfile = blendfile_template % (args.asplit, output_index)
+
+    # reset render args
+    render_args.filepath = output_image
+
+    # copy scene_struct
+    scene_struct_action = copy.deepcopy(scene_struct)
+
+    # reset for action objects
+    scene_struct_action['split'] = args.asplit
+    scene_struct_action['image_filename'] = os.path.basename(output_image)
+    scene_struct_action['objects'] = []
+
+    # modify one property based on objects and blender_objects
+    prop_changed, objects_action, blender_objects_action, positions_action = \
+      modify_objects(args, number_objects=1,
+                     objects=copy.deepcopy(objects), blender_objects=blender_objects,
+                     positions=copy.deepcopy(positions), scene_struct=copy.deepcopy(scene_struct_action),
+                     camera=camera, max_prop_change=1)
+
+    # Count number of changes
+    for obj in prop_changed['prop_changed']:
+      for prop in obj:
+        counts[prop] += 1
+
+    # Render the scene and dump the scene data structure
+    scene_struct_action['objects'] = objects_action
+    scene_struct_action['relationships'] = compute_all_relationships(scene_struct_action)
+    while True:
+      try:
+        bpy.ops.render.render(write_still=True)
+        break
+      except Exception as e:
+        print(e)
+
+    with open(output_scene, 'w') as f:
+      json.dump(scene_struct_action, f, indent=2)
+
+    if output_blendfile is not None:
+      bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
+
+    #############################################################
+    # Generate a combined scene json file for question generating
+    #############################################################
+    # combine the two scene_structure and generate new scene_struct files
+    output_scene = scene_template % (args.csplit, output_index)
+
+    scene_struct_combined = \
+      {'split': scene_struct['split'],
+       'image_index': output_index,
+       'image_filename': scene_struct['image_filename'],
+       'objects': scene_struct['objects'],
+       'directions': scene_struct['directions'],
+       'cor_split': scene_struct_action['split'],
+       'cor_image_filename': scene_struct_action['image_filename'],
+       'cor_objects': scene_struct_action['objects'],
+       'cor_directions': scene_struct_action['directions'],
+       'prop_changed': prop_changed}
+
+    # create temperary scene_struct that contains two set of objects stack tgt
+    scene_struct_combined_temps = copy.deepcopy(scene_struct_combined)
+    scene_struct_combined_temps['objects'].extend(scene_struct_combined_temps['cor_objects'])
+
+    # compute relationships of the same index
+    scene_struct_combined['relationships'] = \
+      compute_all_relationships(scene_struct_combined_temps)
+
+    with open(output_scene, 'w') as f:
+      json.dump(scene_struct_combined, f, indent=2)
 
 
 def add_random_objects(scene_struct, num_objects, args, camera):
@@ -442,7 +701,214 @@ def add_random_objects(scene_struct, num_objects, args, camera):
       utils.delete_object(obj)
     return add_random_objects(scene_struct, num_objects, args, camera)
 
-  return objects, blender_objects
+  return objects, blender_objects, positions
+
+
+def modify_objects(args, number_objects, objects, blender_objects,
+    positions, scene_struct,
+    camera, max_prop_change=1
+  ):
+  # Load the property file
+  with open(args.properties_json, 'r') as f:
+    properties = json.load(f)
+    color_name_to_rgba = {}
+    for name, rgb in properties['colors'].items():
+      rgba = [float(c) / 255.0 for c in rgb] + [1.0]
+      color_name_to_rgba[name] = rgba
+    material_mapping = [(v, k) for k, v in properties['materials'].items()]
+    size_mapping = list(properties['sizes'].items())
+
+  shape_color_combos = None
+  if args.shape_color_combos_json is not None:
+    with open(args.shape_color_combos_json, 'r') as f:
+      shape_color_combos = list(json.load(f).items())
+
+  # find index of all potential modifications and properties to change
+  pool_of_properties = ["size", "materials", "color"]
+  indices_modifications = random.sample(range(len(objects)), number_objects)
+  props_modifications = random.sample(pool_of_properties, max_prop_change)
+
+  # Create variable to store all changes
+  prop_changed = {"obj_id": [], "prop_changed": []}
+
+  # change object properties for each object
+  for i, index in enumerate(indices_modifications):
+    blender_obj = blender_objects[index]
+    prop_changed['obj_id'] = index
+    prop_changed['prop_changed'].append([])
+
+    for prop in props_modifications:
+      if prop == "color":
+        # Choose random color
+        color_name, rgba = random.choice(list(color_name_to_rgba.items()))
+
+        # Count color
+        if color_name != objects[index]['color']:
+          prop_changed['prop_changed'][i].append(COLOR_CHANGED)
+        else:
+          prop_changed['prop_changed'][i].append(COLOR_UNCHANGED)
+
+        # Change Objects info
+        objects[index]['color'] = color_name
+        # Delete all original materials
+        for i in range(len(blender_obj.data.materials)):
+          blender_obj.data.materials.pop(i)
+        # Set active object to
+        bpy.context.scene.objects.active = blender_obj
+        # Set new color with original mat
+        mat_name_out = objects[index]['material']
+        utils.add_material(properties['materials'][mat_name_out], Color=rgba)
+
+      elif prop == "materials":
+        # random select new material
+        mat_name, mat_name_out = random.choice(material_mapping)
+
+        # Count number changed
+        if mat_name_out != objects[index]['material']:
+          prop_changed['prop_changed'][i].append(MAT_CHANGED)
+        else:
+          prop_changed['prop_changed'][i].append(MAT_UNCHANGED)
+
+        # Change object info
+        objects[index]['material'] = mat_name_out
+        # Delete all original materials
+        for i in range(len(blender_obj.data.materials)):
+          blender_obj.data.materials.pop(i)
+        # Set active object to
+        bpy.context.scene.objects.active = blender_obj
+        # set new material with original color
+        color_name = objects[index]['color']
+        utils.add_material(mat_name, Color=color_name_to_rgba[color_name])
+
+      elif prop == "size":
+        # get color
+        color_name = objects[index]['color']
+        rgba = color_name_to_rgba[color_name]
+
+        # get materials
+        mat_name_out = objects[index]['material']
+        mat_name = properties['materials'][mat_name_out]
+
+        # get shape
+        obj_name_out = objects[index]['shape']
+        obj_name = properties['shapes'][obj_name_out]
+
+        # get rotation
+        theta = objects[index]['rotation']
+
+        # Choose a random size
+        size_name, r = random.choice(size_mapping)
+
+        # Previous pos
+        (px, py, pr) = positions[index]
+        positions.pop(index)
+
+        # Find new position
+        # Try to place the object, ensuring that we don't intersect any existing
+        # objects and that we are more than the desired margin away from all existing
+        # objects along all cardinal directions.
+        num_tries = 0
+        while True:
+          # If we try and fail to place an object too many times, then assign the old position back
+          num_tries += 1
+          if num_tries > args.max_retries:
+            x, y, r = px, py, pr
+            prop_changed['prop_changed'][i].append(SIZE_UNCHANGED)
+            break
+          x = random.uniform(-3, 3)
+          y = random.uniform(-3, 3)
+          # Check to make sure the new object is further than min_dist from all
+          # other objects, and further than margin along the four cardinal directions
+          dists_good = True
+          margins_good = True
+          for (xx, yy, rr) in positions:
+            dx, dy = x - xx, y - yy
+            dist = math.sqrt(dx * dx + dy * dy)
+            if dist - r - rr < args.min_dist:
+              dists_good = False
+              break
+            for direction_name in ['left', 'right', 'front', 'behind']:
+              direction_vec = scene_struct['directions'][direction_name]
+              assert direction_vec[2] == 0
+              margin = dx * direction_vec[0] + dy * direction_vec[1]
+              if 0 < margin < args.margin:
+                print(margin, args.margin, direction_name)
+                print('BROKEN MARGIN!')
+                margins_good = False
+                break
+            if not margins_good:
+              break
+
+          if dists_good and margins_good:
+            break
+
+        # add new object
+        utils.add_object(args.shape_dir, obj_name, r, (x, y), theta=theta)
+        obj = bpy.context.object
+        bpy.context.scene.objects.active = obj
+
+        # Attach a random material
+        utils.add_material(mat_name, Color=rgba)
+
+        # delete objects and add the new to the list
+        objects.pop(index)
+        utils.delete_object(blender_obj)
+        blender_objects.pop(index)
+        blender_objects.insert(index, obj)
+        positions.insert(index, (x, y, r))
+
+        # Record data about the object in the scene data structure
+        pixel_coords = utils.get_camera_coords(camera, obj.location)
+        objects.insert(index,{
+                              'shape': obj_name_out,
+                              'size': size_name,
+                              'material': mat_name_out,
+                              '3d_coords': tuple(obj.location),
+                              'rotation': theta,
+                              'pixel_coords': pixel_coords,
+                              'color': color_name,
+                            })
+        blender_obj = obj
+
+        # Check that all objects are at least partially visible in the rendered image
+        all_visible = check_visibility(blender_objects, args.min_pixels_per_object)
+        if not all_visible:
+          # if no all visible use the old coordinate
+          # add original shape and size
+          utils.add_object(args.shape_dir, obj_name, pr, (px, py), theta=theta)
+          obj = bpy.context.object
+          # Delete all original materials
+          for i in range(len(obj.data.materials)):
+            obj.data.materials.pop(i)
+          # Attach a random material
+          utils.add_material(mat_name, Color=rgba)
+
+          # delete old object and add the original back
+          utils.delete_object(blender_obj)
+          blender_objects.pop(index)
+          positions.pop(index)
+          objects.pop(index)
+          blender_objects.insert(index, obj)
+          positions.insert(index, (px, py, pr))
+
+          # Record data about the object in the scene data structure
+          pixel_coords = utils.get_camera_coords(camera, obj.location)
+          objects.insert(index, {
+            'shape': obj_name_out,
+            'size': size_name,
+            'material': mat_name_out,
+            '3d_coords': tuple(obj.location),
+            'rotation': theta,
+            'pixel_coords': pixel_coords,
+            'color': color_name,
+          })
+
+          # Count unchanged
+          prop_changed['prop_changed'][i].append(SIZE_UNCHANGED)
+        # if satisfy, then add prop changed
+        if all_visible and num_tries < args.max_retries:
+          prop_changed['prop_changed'][i].append(SIZE_CHANGED)
+  return prop_changed, objects, blender_objects, positions
 
 
 def compute_all_relationships(scene_struct, eps=0.2):
