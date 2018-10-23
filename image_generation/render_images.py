@@ -6,11 +6,11 @@
 # of patent rights can be found in the PATENTS file in the same directory.
 
 from __future__ import print_function
-import math, sys, random, argparse, json, os, tempfile, copy, time
+import math, sys, random, argparse, json, os, tempfile, copy, time, logging
 from datetime import datetime as dt
+from datetime import timedelta as td
 from collections import Counter
 import numpy as np
-import logging
 
 """
 Renders random scenes using Blender, each with with a random number of objects;
@@ -198,6 +198,7 @@ render_log = LogRenderInfo('../output/blender_render.log')
 
 def main(args):
   render_log.on()
+  main_start = time.time()
   num_digits = 6
   prefix = '%s_%%s_' % (args.filename_prefix)
   img_template = '%s%%0%dd.png' % (prefix, num_digits)
@@ -217,7 +218,7 @@ def main(args):
   all_scene_paths = []
   all_combined_scene_paths = []
   for i in range(args.num_images):
-    logger.info("NUMBER OF IMAGES PROCESSED: %i / %i" % (i+1, args.num_images))
+    start = time.time()
     img_path = img_template
     scene_path = scene_template
     all_scene_paths.append(scene_path % (args.split, (i + args.start_idx)))
@@ -246,6 +247,9 @@ def main(args):
         output_scene=scene_path % (args.split, (i + args.start_idx)),
         output_blendfile=blend_path
       )
+    end = time.time()
+    logger.info("NUMBER OF IMAGES PROCESSED: %i / %i ---- Time_Per_Image %s, Time in Total: %s"
+                % (i+1, args.num_images, str(td(seconds=int(end - start))), str(td(seconds=int(end - main_start)))))
 
   # After rendering all images, combine the JSON files for each scene into a
   # single JSON file.
