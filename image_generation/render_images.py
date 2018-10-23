@@ -191,7 +191,7 @@ SIZE_CHANGED, SIZE_UNCHANGED, COLOR_CHANGED, COLOR_UNCHANGED, MAT_CHANGED, MAT_U
   = "size_changed", "size_unchanged", "color_changed", "color_unchanged", "mat_changed", "mat_unchanged"
 counts = {SIZE_CHANGED: 0, SIZE_UNCHANGED: 0, COLOR_CHANGED: 0,
           COLOR_UNCHANGED: 0, MAT_CHANGED: 0, MAT_UNCHANGED: 0}
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 render_log = LogRenderInfo('../output/blender_render.log')
 
@@ -561,20 +561,16 @@ def render_scene_with_action(args,
     scene_struct_action['objects'] = []
 
     # modify one property based on objects and blender_objects
-    prop_changed, objects_action, blender_objects_action, positions_action = \
+    scene_change_counts, objects_action, blender_objects_action, positions_action = \
       modify_objects(args, number_objects=1,
                      objects=copy.deepcopy(objects), blender_objects=blender_objects,
                      positions=copy.deepcopy(positions), scene_struct=copy.deepcopy(scene_struct_action),
                      camera=camera, max_prop_change=1)
 
-    # Count number of changes
-    for obj_count_dict in prop_changed['prop_changed']:
-      for (prop, num_counts) in obj_count_dict.items():
-        counts[prop] += num_counts
-
     # Render the scene and dump the scene data structure
     scene_struct_action['objects'] = objects_action
     scene_struct_action['relationships'] = compute_all_relationships(scene_struct_action)
+
     while True:
       try:
         render_log.on()
@@ -608,7 +604,7 @@ def render_scene_with_action(args,
        'cor_image_filename': scene_struct_action['image_filename'],
        'cor_objects': scene_struct_action['objects'],
        'cor_directions': scene_struct_action['directions'],
-       'prop_changed': prop_changed}
+       'scene_change_counts': scene_change_counts}
 
     # create temperary scene_struct that contains two set of objects stack tgt
     scene_struct_combined_temps = copy.deepcopy(scene_struct_combined)
@@ -617,6 +613,48 @@ def render_scene_with_action(args,
     # compute relationships of the same index
     scene_struct_combined['relationships'] = \
       compute_all_relationships(scene_struct_combined_temps)
+
+    # Count number of changes and generate dict for changed objects
+    # direction indicates where this object move to, 0 for no movement, 1 for movement
+    # {'type': [COLOR_CHANGED, ...],
+    #  'obj':  [{'size', 'mat', 'shape', 'color', 'left', 'right', 'behind', 'front'}],
+    #  'cobj': [{'size', 'mat', 'shape', 'color', 'left', 'right', 'behind', 'front'}],
+    #  'ids' : []}
+    changes = {'type': None, 'obj': None, 'cobj': None, 'id': None}
+    for obj_id, obj_count_dict in zip(scene_change_counts['obj_id'], scene_change_counts['counts']):
+      # only work for one obj and one property change
+      type_of_change = None
+      for (prop, num_counts) in obj_count_dict.items():
+        counts[prop] += num_counts
+        if num_counts > 0:
+          type_of_change = prop
+
+      # set up changes dict
+      if type_of_change == SIZE_UNCHANGED or type_of_change == COLOR_UNCHANGED or type_of_change == MAT_UNCHANGED:
+        changes['type'] = type_of_change
+      else:
+        changes['type'] = type_of_change
+        changes['id'] = obj_id
+        changes['obj'] = copy.deepcopy(objects[obj_id])
+        changes['cobj'] = copy.deepcopy(objects_action[obj_id])
+        index_of_cobj_combined = len(objects) + obj_id
+
+        for direction, relations_to_obj in scene_struct_combined['relationships'].items():
+          # find out how obj moves
+          if index_of_cobj_combined in relations_to_obj[obj_id]:
+            changes['obj'][direction] = 1
+          else:
+            changes['obj'][direction] = 0
+
+          # find out how cobj move
+          if obj_id in relations_to_obj[index_of_cobj_combined]:
+            changes['cobj'][direction] = 1
+          else:
+            changes['cobj'][direction] = 0
+
+    # add changes to scene_struct_combined
+    scene_struct_combined['changes'] = changes
+
 
     with open(output_scene, 'w') as f:
       json.dump(scene_struct_combined, f, indent=2)
@@ -765,14 +803,14 @@ def modify_objects(args, number_objects, objects, blender_objects,
   props_modifications = np.random.choice(pool_of_properties, max_prop_change).tolist()
 
   # Create variable to store all changes
-  prop_changed = {"obj_id": [], "prop_changed": []}
+  prop_changed = {"obj_id": [], "counts": []}
 
   # Note: this only tested on one object with one property changed
   # change object properties for each object
   for i, index in enumerate(indices_modifications):
     blender_obj = blender_objects[index]
     prop_changed['obj_id'].append(index)
-    prop_changed['prop_changed'].append({SIZE_CHANGED: 0, SIZE_UNCHANGED: 0,
+    prop_changed['counts'].append({SIZE_CHANGED: 0, SIZE_UNCHANGED: 0,
                                          COLOR_CHANGED: 0, COLOR_UNCHANGED: 0,
                                          MAT_CHANGED: 0, MAT_UNCHANGED: 0})
 
@@ -793,9 +831,9 @@ def modify_objects(args, number_objects, objects, blender_objects,
           # Set new color with original mat
           mat_name_out = objects[index]['material']
           utils.add_material(properties['materials'][mat_name_out], Color=rgba)
-          prop_changed['prop_changed'][i][COLOR_CHANGED] += 1
+          prop_changed['counts'][i][COLOR_CHANGED] += 1
         else:
-          prop_changed['prop_changed'][i][COLOR_UNCHANGED] += 1
+          prop_changed['counts'][i][COLOR_UNCHANGED] += 1
 
       elif prop == "material":
         # random select new material
@@ -812,16 +850,16 @@ def modify_objects(args, number_objects, objects, blender_objects,
           # set new material with original color
           color_name = objects[index]['color']
           utils.add_material(mat_name, Color=color_name_to_rgba[color_name])
-          prop_changed['prop_changed'][i][MAT_CHANGED] += 1
+          prop_changed['counts'][i][MAT_CHANGED] += 1
         else:
-          prop_changed['prop_changed'][i][MAT_UNCHANGED] += 1
+          prop_changed['counts'][i][MAT_UNCHANGED] += 1
 
       elif prop == "position":
         # 20% chance to generate unchanged scene
         enable_change = np.random.choice([True, False], p = [0.8, 0.2])
 
         if not enable_change:
-          prop_changed['prop_changed'][i][SIZE_UNCHANGED] += 1
+          prop_changed['counts'][i][SIZE_UNCHANGED] += 1
 
         elif enable_change:
           # get color
@@ -882,7 +920,7 @@ def modify_objects(args, number_objects, objects, blender_objects,
           # there is intersection, save previous position and exit modification
           if not (dists_good and margins_good):
             positions.insert(index, (px, py, pr))
-            prop_changed['prop_changed'][i][SIZE_UNCHANGED] += 1
+            prop_changed['counts'][i][SIZE_UNCHANGED] += 1
 
           # no intersection, generate new object
           else:
@@ -918,7 +956,7 @@ def modify_objects(args, number_objects, objects, blender_objects,
             all_visible = check_visibility(blender_objects, args.min_pixels_per_object)
 
             if all_visible:
-              prop_changed['prop_changed'][i][SIZE_CHANGED] += 1
+              prop_changed['counts'][i][SIZE_CHANGED] += 1
 
             else:
               # not valid scene
@@ -951,7 +989,7 @@ def modify_objects(args, number_objects, objects, blender_objects,
                 'color': color_name,
               })
               # Count unchanged
-              prop_changed['prop_changed'][i][SIZE_UNCHANGED] += 1
+              prop_changed['counts'][i][SIZE_UNCHANGED] += 1
 
   return prop_changed, objects, blender_objects, positions
 
