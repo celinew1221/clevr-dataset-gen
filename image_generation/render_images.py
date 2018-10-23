@@ -10,6 +10,7 @@ import math, sys, random, argparse, json, os, tempfile, copy, time
 from datetime import datetime as dt
 from collections import Counter
 import numpy as np
+import logging
 
 """
 Renders random scenes using Blender, each with with a random number of objects;
@@ -190,10 +191,13 @@ SIZE_CHANGED, SIZE_UNCHANGED, COLOR_CHANGED, COLOR_UNCHANGED, MAT_CHANGED, MAT_U
   = "size_changed", "size_unchanged", "color_changed", "color_unchanged", "mat_changed", "mat_unchanged"
 counts = {SIZE_CHANGED: 0, SIZE_UNCHANGED: 0, COLOR_CHANGED: 0,
           COLOR_UNCHANGED: 0, MAT_CHANGED: 0, MAT_UNCHANGED: 0}
-render_log = LogRenderInfo('../output/blender_render_log')
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+render_log = LogRenderInfo('../output/blender_render.log')
 
 
 def main(args):
+  render_log.on()
   num_digits = 6
   prefix = '%s_%%s_' % (args.filename_prefix)
   img_template = '%s%%0%dd.png' % (prefix, num_digits)
@@ -213,7 +217,7 @@ def main(args):
   all_scene_paths = []
   all_combined_scene_paths = []
   for i in range(args.num_images):
-    print("NUMBER OF IMAGES PROCESSED: %i / %i" % (i+1, args.num_images), end='/r')
+    logger.info("NUMBER OF IMAGES PROCESSED: %i / %i" % (i+1, args.num_images))
     img_path = img_template
     scene_path = scene_template
     all_scene_paths.append(scene_path % (args.split, (i + args.start_idx)))
@@ -389,12 +393,10 @@ def render_scene(args,
   scene_struct['relationships'] = compute_all_relationships(scene_struct)
   while True:
     try:
-      render_log.on()
       bpy.ops.render.render(write_still=True)
-      render_log.off()
       break
     except Exception as e:
-      print(e)
+      logger.warning(e)
 
   with open(output_scene, 'w') as f:
     json.dump(scene_struct, f, indent=2)
@@ -522,12 +524,10 @@ def render_scene_with_action(args,
   scene_struct['relationships'] = compute_all_relationships(scene_struct)
   while True:
     try:
-      render_log.on()
       bpy.ops.render.render(write_still=True)
-      render_log.off()
       break
     except Exception as e:
-      print(e)
+      logger.warning(e)
 
   with open(output_scene, 'w') as f:
     json.dump(scene_struct, f, indent=2)
@@ -578,13 +578,15 @@ def render_scene_with_action(args,
         render_log.off()
         break
       except Exception as e:
-        print(e)
+        logger.warning(e)
 
     with open(output_scene, 'w') as f:
       json.dump(scene_struct_action, f, indent=2)
 
     if output_blendfile is not None:
+      render_log.on()
       bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
+      render_log.off()
 
     #############################################################
     # Generate a combined scene json file for question generating
@@ -673,8 +675,7 @@ def add_random_objects(scene_struct, num_objects, args, camera):
           assert direction_vec[2] == 0
           margin = dx * direction_vec[0] + dy * direction_vec[1]
           if 0 < margin < args.margin:
-            print(margin, args.margin, direction_name)
-            print('BROKEN MARGIN!')
+            logger.debug("BROKEN MARGIN: %.2f %2f %s" % (margin, args.margin, direction_name))
             margins_good = False
             break
         if not margins_good:
@@ -727,7 +728,7 @@ def add_random_objects(scene_struct, num_objects, args, camera):
   if not all_visible:
     # If any of the objects are fully occluded then start over; delete all
     # objects from the scene and place them all again.
-    print('Some objects are occluded; replacing objects')
+    logger.debug('Some objects are occluded; replacing objects')
     for obj in blender_objects:
       utils.delete_object(obj)
     return add_random_objects(scene_struct, num_objects, args, camera)
@@ -865,8 +866,7 @@ def modify_objects(args, number_objects, objects, blender_objects,
                 assert direction_vec[2] == 0
                 margin = dx * direction_vec[0] + dy * direction_vec[1]
                 if 0 < margin < args.margin:
-                  print(margin, args.margin, direction_name)
-                  print('BROKEN MARGIN!')
+                  logger.debug("BROKEN MARGIN: %.2f %2f %s" % (margin, args.margin, direction_name))
                   margins_good = False
                   break
               if not margins_good:
