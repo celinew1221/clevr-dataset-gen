@@ -6,7 +6,7 @@
 # of patent rights can be found in the PATENTS file in the same directory.
 
 from __future__ import print_function
-import math, sys, random, argparse, json, os, tempfile, copy
+import math, sys, random, argparse, json, os, tempfile, copy, time
 from datetime import datetime as dt
 from collections import Counter
 import numpy as np
@@ -165,10 +165,33 @@ parser.add_argument('--render_tile_size', default=256, type=int,
          "rendering may achieve better performance using smaller tile sizes " +
          "while larger tile sizes may be optimal for GPU-based rendering.")
 
+
+class LogRenderInfo():
+  def __init__(self, logfile):
+    self.old = None
+    self.logfile = logfile
+    # create log file to store rendering information
+    open(self.logfile, 'a').close()
+
+  def on(self):
+    self.old = os.dup(1)
+    sys.stdout.flush()
+    os.close(1)
+    os.open(self.logfile, os.O_WRONLY)
+
+  def off(self):
+    # disable output redirection
+    os.close(1)
+    os.dup(self.old)
+    os.close(self.old)
+
+
 SIZE_CHANGED, SIZE_UNCHANGED, COLOR_CHANGED, COLOR_UNCHANGED, MAT_CHANGED, MAT_UNCHANGED \
   = "size_changed", "size_unchanged", "color_changed", "color_unchanged", "mat_changed", "mat_unchanged"
 counts = {SIZE_CHANGED: 0, SIZE_UNCHANGED: 0, COLOR_CHANGED: 0,
           COLOR_UNCHANGED: 0, MAT_CHANGED: 0, MAT_UNCHANGED: 0}
+render_log = LogRenderInfo('../output/blender_render_log')
+
 
 def main(args):
   num_digits = 6
@@ -190,6 +213,7 @@ def main(args):
   all_scene_paths = []
   all_combined_scene_paths = []
   for i in range(args.num_images):
+    print("NUMBER OF IMAGES PROCESSED: %i / %i" % (i+1, args.num_images), end='/r')
     img_path = img_template
     scene_path = scene_template
     all_scene_paths.append(scene_path % (args.split, (i + args.start_idx)))
@@ -365,7 +389,9 @@ def render_scene(args,
   scene_struct['relationships'] = compute_all_relationships(scene_struct)
   while True:
     try:
+      render_log.on()
       bpy.ops.render.render(write_still=True)
+      render_log.off()
       break
     except Exception as e:
       print(e)
@@ -496,7 +522,9 @@ def render_scene_with_action(args,
   scene_struct['relationships'] = compute_all_relationships(scene_struct)
   while True:
     try:
+      render_log.on()
       bpy.ops.render.render(write_still=True)
+      render_log.off()
       break
     except Exception as e:
       print(e)
@@ -545,7 +573,9 @@ def render_scene_with_action(args,
     scene_struct_action['relationships'] = compute_all_relationships(scene_struct_action)
     while True:
       try:
+        render_log.on()
         bpy.ops.render.render(write_still=True)
+        render_log.off()
         break
       except Exception as e:
         print(e)
@@ -1017,7 +1047,9 @@ def render_shadeless(blender_objects, path='flat.png'):
     obj.data.materials[0] = mat
 
   # Render the scene
+  render_log.on()
   bpy.ops.render.render(write_still=True)
+  render_log.off()
 
   # Undo the above; first restore the materials to objects
   for mat, obj in zip(old_materials, blender_objects):
