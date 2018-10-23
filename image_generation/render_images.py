@@ -9,6 +9,7 @@ from __future__ import print_function
 import math, sys, random, argparse, json, os, tempfile, copy
 from datetime import datetime as dt
 from collections import Counter
+import numpy as np
 
 """
 Renders random scenes using Blender, each with with a random number of objects;
@@ -262,7 +263,7 @@ def render_scene(args,
     output_index=0,
     output_split='none',
     output_image='render.png',
-    output_scene='render_json',
+    output_scene='render.json',
     output_blendfile=None,
   ):
 
@@ -380,7 +381,7 @@ def render_scene_with_action(args,
     num_objects=5,
     output_index=0,
     output_image='render.png',
-    output_scene='render_json',
+    output_scene='render.json',
     output_blendfile=None,
   ):
   ##############################
@@ -535,9 +536,9 @@ def render_scene_with_action(args,
                      camera=camera, max_prop_change=1)
 
     # Count number of changes
-    for obj in prop_changed['prop_changed']:
-      for prop in obj:
-        counts[prop] += 1
+    for obj_count_dict in prop_changed['prop_changed']:
+      for (prop, num_counts) in obj_count_dict.items():
+        counts[prop] += num_counts
 
     # Render the scene and dump the scene data structure
     scene_struct_action['objects'] = objects_action
@@ -724,18 +725,21 @@ def modify_objects(args, number_objects, objects, blender_objects,
       shape_color_combos = list(json.load(f).items())
 
   # find index of all potential modifications and properties to change
-  pool_of_properties = ["size", "materials", "color"]
-  indices_modifications = random.sample(range(len(objects)), number_objects)
-  props_modifications = random.sample(pool_of_properties, max_prop_change)
+  pool_of_properties = ["position", "material", "color"]
+  indices_modifications = np.random.choice(range(len(objects)), number_objects).tolist()
+  props_modifications = np.random.choice(pool_of_properties, max_prop_change).tolist()
 
   # Create variable to store all changes
   prop_changed = {"obj_id": [], "prop_changed": []}
 
+  # Note: this only tested on one object with one property changed
   # change object properties for each object
   for i, index in enumerate(indices_modifications):
     blender_obj = blender_objects[index]
-    prop_changed['obj_id'] = index
-    prop_changed['prop_changed'].append([])
+    prop_changed['obj_id'].append(index)
+    prop_changed['prop_changed'].append({SIZE_CHANGED: 0, SIZE_UNCHANGED: 0,
+                                         COLOR_CHANGED: 0, COLOR_UNCHANGED: 0,
+                                         MAT_CHANGED: 0, MAT_UNCHANGED: 0})
 
     for prop in props_modifications:
       if prop == "color":
@@ -744,170 +748,177 @@ def modify_objects(args, number_objects, objects, blender_objects,
 
         # Count color
         if color_name != objects[index]['color']:
-          prop_changed['prop_changed'][i].append(COLOR_CHANGED)
+          # Change Objects info
+          objects[index]['color'] = color_name
+          # Delete all original materials
+          for i in range(len(blender_obj.data.materials)):
+            blender_obj.data.materials.pop(i)
+          # Set active object to
+          bpy.context.scene.objects.active = blender_obj
+          # Set new color with original mat
+          mat_name_out = objects[index]['material']
+          utils.add_material(properties['materials'][mat_name_out], Color=rgba)
+          prop_changed['prop_changed'][i][COLOR_CHANGED] += 1
         else:
-          prop_changed['prop_changed'][i].append(COLOR_UNCHANGED)
+          prop_changed['prop_changed'][i][COLOR_UNCHANGED] += 1
 
-        # Change Objects info
-        objects[index]['color'] = color_name
-        # Delete all original materials
-        for i in range(len(blender_obj.data.materials)):
-          blender_obj.data.materials.pop(i)
-        # Set active object to
-        bpy.context.scene.objects.active = blender_obj
-        # Set new color with original mat
-        mat_name_out = objects[index]['material']
-        utils.add_material(properties['materials'][mat_name_out], Color=rgba)
-
-      elif prop == "materials":
+      elif prop == "material":
         # random select new material
         mat_name, mat_name_out = random.choice(material_mapping)
 
-        # Count number changed
         if mat_name_out != objects[index]['material']:
-          prop_changed['prop_changed'][i].append(MAT_CHANGED)
-        else:
-          prop_changed['prop_changed'][i].append(MAT_UNCHANGED)
-
-        # Change object info
-        objects[index]['material'] = mat_name_out
-        # Delete all original materials
-        for i in range(len(blender_obj.data.materials)):
-          blender_obj.data.materials.pop(i)
-        # Set active object to
-        bpy.context.scene.objects.active = blender_obj
-        # set new material with original color
-        color_name = objects[index]['color']
-        utils.add_material(mat_name, Color=color_name_to_rgba[color_name])
-
-      elif prop == "size":
-        # get color
-        color_name = objects[index]['color']
-        rgba = color_name_to_rgba[color_name]
-
-        # get materials
-        mat_name_out = objects[index]['material']
-        mat_name = properties['materials'][mat_name_out]
-
-        # get shape
-        obj_name_out = objects[index]['shape']
-        obj_name = properties['shapes'][obj_name_out]
-
-        # get rotation
-        theta = objects[index]['rotation']
-
-        # Choose a random size
-        size_name, r = random.choice(size_mapping)
-
-        # Previous pos
-        (px, py, pr) = positions[index]
-        positions.pop(index)
-
-        # Find new position
-        # Try to place the object, ensuring that we don't intersect any existing
-        # objects and that we are more than the desired margin away from all existing
-        # objects along all cardinal directions.
-        num_tries = 0
-        while True:
-          # If we try and fail to place an object too many times, then assign the old position back
-          num_tries += 1
-          if num_tries > args.max_retries:
-            x, y, r = px, py, pr
-            prop_changed['prop_changed'][i].append(SIZE_UNCHANGED)
-            break
-          x = random.uniform(-3, 3)
-          y = random.uniform(-3, 3)
-          # Check to make sure the new object is further than min_dist from all
-          # other objects, and further than margin along the four cardinal directions
-          dists_good = True
-          margins_good = True
-          for (xx, yy, rr) in positions:
-            dx, dy = x - xx, y - yy
-            dist = math.sqrt(dx * dx + dy * dy)
-            if dist - r - rr < args.min_dist:
-              dists_good = False
-              break
-            for direction_name in ['left', 'right', 'front', 'behind']:
-              direction_vec = scene_struct['directions'][direction_name]
-              assert direction_vec[2] == 0
-              margin = dx * direction_vec[0] + dy * direction_vec[1]
-              if 0 < margin < args.margin:
-                print(margin, args.margin, direction_name)
-                print('BROKEN MARGIN!')
-                margins_good = False
-                break
-            if not margins_good:
-              break
-
-          if dists_good and margins_good:
-            break
-
-        # add new object
-        utils.add_object(args.shape_dir, obj_name, r, (x, y), theta=theta)
-        obj = bpy.context.object
-        bpy.context.scene.objects.active = obj
-
-        # Attach a random material
-        utils.add_material(mat_name, Color=rgba)
-
-        # delete objects and add the new to the list
-        objects.pop(index)
-        utils.delete_object(blender_obj)
-        blender_objects.pop(index)
-        blender_objects.insert(index, obj)
-        positions.insert(index, (x, y, r))
-
-        # Record data about the object in the scene data structure
-        pixel_coords = utils.get_camera_coords(camera, obj.location)
-        objects.insert(index,{
-                              'shape': obj_name_out,
-                              'size': size_name,
-                              'material': mat_name_out,
-                              '3d_coords': tuple(obj.location),
-                              'rotation': theta,
-                              'pixel_coords': pixel_coords,
-                              'color': color_name,
-                            })
-        blender_obj = obj
-
-        # Check that all objects are at least partially visible in the rendered image
-        all_visible = check_visibility(blender_objects, args.min_pixels_per_object)
-        if not all_visible:
-          # if no all visible use the old coordinate
-          # add original shape and size
-          utils.add_object(args.shape_dir, obj_name, pr, (px, py), theta=theta)
-          obj = bpy.context.object
+          # change materials
+          objects[index]['material'] = mat_name_out
           # Delete all original materials
-          for i in range(len(obj.data.materials)):
-            obj.data.materials.pop(i)
-          # Attach a random material
-          utils.add_material(mat_name, Color=rgba)
+          for i in range(len(blender_obj.data.materials)):
+            blender_obj.data.materials.pop(i)
+          # Set active object to
+          bpy.context.scene.objects.active = blender_obj
+          # set new material with original color
+          color_name = objects[index]['color']
+          utils.add_material(mat_name, Color=color_name_to_rgba[color_name])
+          prop_changed['prop_changed'][i][MAT_CHANGED] += 1
+        else:
+          prop_changed['prop_changed'][i][MAT_UNCHANGED] += 1
 
-          # delete old object and add the original back
-          utils.delete_object(blender_obj)
-          blender_objects.pop(index)
+      elif prop == "position":
+        # 20% chance to generate unchanged scene
+        enable_change = np.random.choice([True, False], p = [0.8, 0.2])
+
+        if not enable_change:
+          prop_changed['prop_changed'][i][SIZE_UNCHANGED] += 1
+
+        elif enable_change:
+          # get color
+          color_name = objects[index]['color']
+          rgba = color_name_to_rgba[color_name]
+
+          # get materials
+          mat_name_out = objects[index]['material']
+          mat_name = properties['materials'][mat_name_out]
+
+          # get shape
+          obj_name_out = objects[index]['shape']
+          obj_name = properties['shapes'][obj_name_out]
+
+          # get rotation
+          theta = objects[index]['rotation']
+
+          # get previous position
+          (px, py, pr) = positions[index]
+          r, size_name = pr, objects[index]['size']
           positions.pop(index)
-          objects.pop(index)
-          blender_objects.insert(index, obj)
-          positions.insert(index, (px, py, pr))
 
-          # Record data about the object in the scene data structure
-          pixel_coords = utils.get_camera_coords(camera, obj.location)
-          objects.insert(index, {
-            'shape': obj_name_out,
-            'size': size_name,
-            'material': mat_name_out,
-            '3d_coords': tuple(obj.location),
-            'rotation': theta,
-            'pixel_coords': pixel_coords,
-            'color': color_name,
-          })
+          # Find new position
+          # Try to place the object, ensuring that we don't intersect any existing
+          # objects and that we are more than the desired margin away from all existing
+          # objects along all cardinal directions.
+          num_tries = 0
+          while True:
+            # If we try and fail to place an object too many times, then assign the old position back
+            if num_tries > args.max_retries:
+              break
+            x = random.uniform(-3, 3)
+            y = random.uniform(-3, 3)
+            # Check to make sure the new object is further than min_dist from all
+            # other objects, and further than margin along the four cardinal directions
+            dists_good = True
+            margins_good = True
+            for (xx, yy, rr) in positions:
+              dx, dy = x - xx, y - yy
+              dist = math.sqrt(dx * dx + dy * dy)
+              if dist - r - rr < args.min_dist:
+                dists_good = False
+                break
+              for direction_name in ['left', 'right', 'front', 'behind']:
+                direction_vec = scene_struct['directions'][direction_name]
+                assert direction_vec[2] == 0
+                margin = dx * direction_vec[0] + dy * direction_vec[1]
+                if 0 < margin < args.margin:
+                  print(margin, args.margin, direction_name)
+                  print('BROKEN MARGIN!')
+                  margins_good = False
+                  break
+              if not margins_good:
+                break
 
-          # Count unchanged
-          prop_changed['prop_changed'][i].append(SIZE_UNCHANGED)
-        # if satisfy, then add prop changed
-        if all_visible and num_tries < args.max_retries:
-          prop_changed['prop_changed'][i].append(SIZE_CHANGED)
+            if dists_good and margins_good:
+              break
+
+          # there is intersection, save previous position and exit modification
+          if not (dists_good and margins_good):
+            positions.insert(index, (px, py, pr))
+            prop_changed['prop_changed'][i][SIZE_UNCHANGED] += 1
+
+          # no intersection, generate new object
+          else:
+            # add new object
+            utils.add_object(args.shape_dir, obj_name, r, (x, y), theta=theta)
+            obj = bpy.context.object
+            bpy.context.scene.objects.active = obj
+
+            # Attach a random material
+            utils.add_material(mat_name, Color=rgba)
+
+            # delete objects and add the new to the list
+            objects.pop(index)
+            utils.delete_object(blender_obj)
+            blender_objects.pop(index)
+            blender_objects.insert(index, obj)
+            positions.insert(index, (x, y, r))
+
+            # Record data about the object in the scene data structure
+            pixel_coords = utils.get_camera_coords(camera, obj.location)
+            objects.insert(index,{
+                                  'shape': obj_name_out,
+                                  'size': size_name,
+                                  'material': mat_name_out,
+                                  '3d_coords': tuple(obj.location),
+                                  'rotation': theta,
+                                  'pixel_coords': pixel_coords,
+                                  'color': color_name,
+                                })
+            blender_obj = obj
+
+            # Check that all objects are at least partially visible in the rendered image
+            all_visible = check_visibility(blender_objects, args.min_pixels_per_object)
+
+            if all_visible:
+              prop_changed['prop_changed'][i][SIZE_CHANGED] += 1
+
+            else:
+              # not valid scene
+              # add original object back to its old position
+              utils.add_object(args.shape_dir, obj_name, pr, (px, py), theta=theta)
+              obj = bpy.context.object
+              # Delete all original materials
+              for i in range(len(obj.data.materials)):
+                obj.data.materials.pop(i)
+              # Attach a random material
+              utils.add_material(mat_name, Color=rgba)
+
+              # delete old object and add the original back
+              utils.delete_object(blender_obj)
+              blender_objects.pop(index)
+              positions.pop(index)
+              objects.pop(index)
+              blender_objects.insert(index, obj)
+              positions.insert(index, (px, py, pr))
+
+              # Record data about the object in the scene data structure
+              pixel_coords = utils.get_camera_coords(camera, obj.location)
+              objects.insert(index, {
+                'shape': obj_name_out,
+                'size': size_name,
+                'material': mat_name_out,
+                '3d_coords': tuple(obj.location),
+                'rotation': theta,
+                'pixel_coords': pixel_coords,
+                'color': color_name,
+              })
+              # Count unchanged
+              prop_changed['prop_changed'][i][SIZE_UNCHANGED] += 1
+
   return prop_changed, objects, blender_objects, positions
 
 
