@@ -21,8 +21,8 @@
       "rubber", "metal"
     ],
     "Mrelation": [
-      "left", "right", "behind", "front", "front, left", "front, right",
-      "behind, left", "behind, right"
+      "left", "right", "behind", "front", "front,left", "front,right",
+      "behind,left", "behind,right"
     ]
   },
   "functions": [
