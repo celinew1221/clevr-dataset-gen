@@ -1,0 +1,74 @@
+[
+  {
+    "text": [
+      "Is there a thing that changes material from image1 to image2?",
+      "Is there a thing that changes material between the images?"
+    ],
+    "params": [],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_material_changes", "inputs": [0]},
+      {"type": "exist", "inputs": [1]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "Is there a thing that is <M> in image1 and is <M2> in image2?",
+      "Is there a thing that is <M2> in image2 and is <M> in image1?",
+      "Is there a thing that changes from <M> in image1 to <M2> in image2?",
+      "Is there a thing that turns <M2> in image2 from <M> in image1?"
+    ],
+    "params": [
+      {"type": "Material", "name": "<M>"},
+      {"type": "Material", "name": "<M2>"}
+    ],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_material_changes", "inputs": [0]},
+      {"type": "query_material_equal", "inputs": [1], "side_inputs": ["<M>"]},
+      {"type": "query_material_equal", "inputs": [1], "side_inputs": ["<M2>"]},
+      {"type": "equal", "inputs": [2,3]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "What material does the <Z> <C> <M> <S> in image1 change to in image2?",
+      "What material is the corresponding thing in image2 of the <Z> <C> <M> <S> of image1?"
+    ],
+    "params": [
+      {"type": "Color", "name": "<C>"},
+      {"type": "Size", "name": "<Z>"},
+      {"type": "Material", "name": "<M>"},
+      {"type": "Shape", "name": "<S>"}
+    ],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_material_changes", "inputs": [0]},
+      {"type": "query_material_change", "inputs": [1], "side_inputs": ["<M>"]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "What material does the <Z2> <C2> <M2> <S2> in image2 change to in image1?",
+      "What material is the corresponding thing in image1 of the <Z2> <C2> <M2> <S2> of image2?"
+    ],
+    "params": [
+      {"type": "Color", "name": "<C2>"},
+      {"type": "Size", "name": "<Z2>"},
+      {"type": "Material", "name": "<M2>"},
+      {"type": "Shape", "name": "<S2>"}
+    ],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_material_changes", "inputs": [0]},
+      {"type": "query_material_change", "inputs": [1], "side_inputs": ["<M2>"]}
+    ],
+    "constraints":[]
+  }
+]

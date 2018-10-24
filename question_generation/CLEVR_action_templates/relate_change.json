@@ -1,0 +1,128 @@
+[
+  {
+    "text": [
+      "Is there a thing that moves in the two images?",
+      "Is there a thing that moves in [both] image1 and image2?"
+    ],
+    "params": [],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_movement_changes", "inputs": [0]},
+      {"type": "exist", "inputs": [1]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "Is there a thing that moves from the <R> to the <R2> from image1 to image2?",
+      "Is there a thing that moves from the <R2> to the <R> from image2 to image1"
+    ],
+    "params": [
+      {"type": "Relation", "name": "<R>"},
+      {"type": "Relation", "name": "<R2>"}
+    ],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_movement_changes", "inputs": [0]},
+      {"type": "query_relation_relation", "inputs": [1], "size_inputs": ["<R>"]},
+      {"type": "query_relation_relation", "inputs": [1], "size_inputs": ["<R2>"]},
+      {"type": "equal", "inputs": [2,3]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "How does the corresponding thing in image2 of <Z> <C> <M> <S> move from image1?",
+      "What is the position of the corresponding thing in image2 relative to the <Z> <C> <M> <S> in image1?"
+    ],
+    "params": [
+      {"type": "Color", "name": "<C>"},
+      {"type": "Size", "name": "<Z>"},
+      {"type": "Material", "name": "<M>"},
+      {"type": "Shape", "name": "<S>"}
+    ],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_movement_changes", "inputs": [0]},
+      {"type": "find_relate", "inputs": [1], "side_inputs": ["<Z>", "<C>", "<M>", "<S>"]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "How does the corresponding thing in image1 of <Z2> <C2> <M2> <S2> move from image2?",
+      "What is the position of the corresponding thing in image1 relative to the <Z2> <C2> <M2> <S2> in image2?"
+    ],
+    "params": [
+      {"type": "Color", "name": "<C2>"},
+      {"type": "Size", "name": "<Z2>"},
+      {"type": "Material", "name": "<M2>"},
+      {"type": "Shape", "name": "<S2>"}
+    ],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_movement_changes", "inputs": [0]},
+      {"type": "find_relate", "inputs": [1], "side_inputs": ["<Z2>", "<C2>", "<M2>", "<S2>"]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "What is the color of the thing that moves in [both] image1 and image2?",
+      "What color is the thing that moves in [both] image1 and image2?"
+    ],
+    "params": [],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_movement_changes", "inputs": [0]},
+      {"type": "query_color", "inputs": [1]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "What is the shape of the thing that moves in [both] image1 and image2?",
+      "What shape is the thing that moves in [both] image1 and image2?"
+    ],
+    "params": [],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_movement_changes", "inputs": [0]},
+      {"type": "query_shape", "inputs": [1]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "What is the material of the thing that moves in [both] image1 and image2?",
+      "What material is the thing that moves in [both] image1 and image2?"
+    ],
+    "params": [],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_movement_changes", "inputs": [0]},
+      {"type": "query_material", "inputs": [1]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "What is the size of the thing that moves in [both] image1 and image2?",
+      "What size is the thing that moves in [both] image1 and image2?"
+    ],
+    "params": [],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_movement_changes", "inputs": [0]},
+      {"type": "query_size", "inputs": [1]}
+    ],
+    "constraints":[]
+  }
+]
