@@ -1,0 +1,26 @@
+[
+  {
+    "text": [
+      "What is the property that changes between image1 and image2?"
+    ],
+    "params": [],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_changes_unique", "inputs": [0]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "Is there a property change between image1 and image2?"
+    ],
+    "params": [],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_changes_unique", "inputs": [0]},
+      {"type": "exist", "inputs": [1]}
+    ],
+    "constraints":[]
+  }
+]
