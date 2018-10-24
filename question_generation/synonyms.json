@@ -11,5 +11,7 @@
   "behind": ["behind"],
   "front": ["in front of"],
   "above": ["above"],
-  "below": ["below"]
+  "below": ["below"],
+  "image1": ["the first image", "image 1", "image one"],
+  "image2": ["the second image", "image 2", "image two"]
 }
