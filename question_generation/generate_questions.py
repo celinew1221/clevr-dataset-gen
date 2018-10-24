@@ -525,13 +525,19 @@ def instantiate_templates(scene_struct, template, metadata, answer_counts,
       return 1
   def find_true_relation(obj):
     relations = []
-    for r in ['behind', 'front', 'left', 'right']:
+    for r in ['back', 'front', 'left', 'right']:
       if obj[r]:
         relations.append(r)
-    return ','.join(relations)
+    return ' '.join(relations)
   def gen_relations():
-    relations = [random.choice(['behind', 'front']), random.choice(['left', 'right'])]
-    return ','.join(relations)
+    relations = [random.choice(['back', 'front']), random.choice(['left', 'right'])]
+    return ' '.join(relations)
+  class RandomChoice():
+    def __init__(self, list):
+      self.list = list
+
+    def random(self):
+      return random.choice(self.list)
 
   answer = None
   vals = {}
@@ -542,21 +548,19 @@ def instantiate_templates(scene_struct, template, metadata, answer_counts,
   if final_node_type == "exist":
     # question if change exists
     answer = True if has_changed else False
-
   # work on color/material/relate template
   elif final_node_type == "equal" and has_changed:
     # question if the two objects are the ones that change
     # generate answer - True/False
     answer = random.choice([True, False])
     if answer == True:
-      if not relate_changed:
-        # generate true question
-        for name, type in param_name_to_type.items():
-          vals[name] = objs[get_obj_id(name)][type.lower()]
-      else:
-        # generate true question for relate changed
-        for name, type in param_name_to_type.items():
-          vals[name] = find_true_relation(objs[get_obj_id(name)])
+      # generate true question
+      for name, type in param_name_to_type.items():
+        if type == 'Relation':
+          val = find_true_relation(objs[get_obj_id(name)])
+        else:
+          val = objs[get_obj_id(name)][type.lower()]
+        vals[name] = val
     else:
       # generate false question
       # get list of possible params from type
@@ -564,25 +568,24 @@ def instantiate_templates(scene_struct, template, metadata, answer_counts,
       list_of_params = metadata['types'][type]
       random.shuffle(list_of_params)
       [p1, p2] = param_name_to_type.keys()
+      if not relate_changed:
+        obj1_val = objs[get_obj_id(p1)][type.lower()]
+        obj2_val = objs[get_obj_id(p2)][type.lower()]
+        random_fn = RandomChoice(list_of_params).random
+      else:
+        obj1_val = find_true_relation(objs[get_obj_id(p1)])
+        obj2_val = find_true_relation(objs[get_obj_id(p2)])
+        random_fn = gen_relations
+
       # keep generating questions until have a sucess
       while True:
-        if not relate_changed:
-          vals[p1] = random.choice(list_of_params)
-          vals[p2] = random.choice(list_of_params)
-          if vals[p1] != vals[p2] and (vals[p1] != objs[get_obj_id(p1)][type.lower()] or
-                                       vals[p2] != objs[get_obj_id(p2)][type.lower()]):
-            # generated a valid question with two different obj and
-            # at least one of them does not match the original property ==> False question
-            break
-        else:
-          vals[p1] = gen_relations()
-          vals[p2] = gen_relations()
-          if vals[p1] != vals[p2] and (vals[p1] != find_true_relation(objs[get_obj_id(p1)]) or
-                                       vals[p2] != find_true_relation(objs[get_obj_id(p2)])):
-            # generated a valid question with two different obj and
-            # at least one of them does not match the original property ==> False question
-            break
+        vals[p1] = random_fn()
+        vals[p2] = random_fn()
 
+        if vals[p1] != vals[p2] and (vals[p1] != obj1_val or vals[p2] != obj2_val):
+          # generated a valid question with two different obj and
+          # at least one of them does not match the original property ==> False question
+          break
 
   elif (not relate_changed or final_node_type == "find_relate") and has_changed:
     # question query what property this object changes to (e.g. query_*_change and find_relate)
@@ -595,10 +598,14 @@ def instantiate_templates(scene_struct, template, metadata, answer_counts,
     else:
       answer = find_true_relation(objs[get_obj_id(param)])
 
-    # generate question by assigning property to <C> <Z> <S> <M>
+    # generate question by assigning property to <C> <Z> <S> <M> <R>
     for name, type in param_name_to_type.items():
       # use name to determine which object then use type to find its value
-      vals[name] = objs[get_obj_id(name)][type.lower()]
+      if type == 'Relation':
+        val = find_true_relation(objs[get_obj_id(name)])
+      else:
+        val = objs[get_obj_id(name)][type.lower()]
+      vals[name] = val
 
   elif relate_changed:
     # question that query property of the moved object
