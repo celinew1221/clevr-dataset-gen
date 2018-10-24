@@ -1,0 +1,10 @@
+--input_scene_file
+/home/celine/projects/clevr-dataset-gen/output/CLEVR_scenes.json
+--output_questions_file
+../output/CLEVR_questions.json
+--templates_per_image
+5
+--instances_per_template
+1
+--action
+0
