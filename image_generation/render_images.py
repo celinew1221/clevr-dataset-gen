@@ -640,6 +640,11 @@ def render_scene_with_action(args,
         index_of_cobj_combined = len(objects) + obj_id
 
         for direction, relations_to_obj in scene_struct_combined['relationships'].items():
+          # replace behind with back due to when describe an object's relative position in a scene
+          # it makes more sense to use back then behind
+          if direction == 'behind':
+            direction = 'back'
+
           # find out how obj moves
           if index_of_cobj_combined in relations_to_obj[obj_id]:
             changes['obj'][direction] = 1
