@@ -13,5 +13,6 @@
   "above": ["above"],
   "below": ["below"],
   "image1": ["the first image", "image 1", "image one"],
-  "image2": ["the second image", "image 2", "image two"]
+  "image2": ["the second image", "image 2", "image two"],
+  "change to": ["turn into"]
 }
