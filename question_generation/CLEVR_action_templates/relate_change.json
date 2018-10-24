@@ -47,7 +47,7 @@
     "nodes": [
       {"type": "scene_changes", "inputs": []},
       {"type": "filter_movement_changes", "inputs": [0]},
-      {"type": "find_relate", "inputs": [1], "side_inputs": ["<Z>", "<C>", "<M>", "<S>"]}
+      {"type": "find_relate", "inputs": [1], "side_inputs": ["<Z>"]}
     ],
     "constraints":[]
   },
@@ -67,7 +67,7 @@
     "nodes": [
       {"type": "scene_changes", "inputs": []},
       {"type": "filter_movement_changes", "inputs": [0]},
-      {"type": "find_relate", "inputs": [1], "side_inputs": ["<Z2>", "<C2>", "<M2>", "<S2>"]}
+      {"type": "find_relate", "inputs": [1], "side_inputs": ["<Z2>"]}
     ],
     "constraints":[]
   },
