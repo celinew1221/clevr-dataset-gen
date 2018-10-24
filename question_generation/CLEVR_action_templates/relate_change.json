@@ -35,7 +35,8 @@
   {
     "text": [
       "How does the corresponding thing in image2 of <Z> <C> <M> <S> move from image1?",
-      "What is the position of the corresponding thing in image2 relative to the <Z> <C> <M> <S> in image1?"
+      "What is the position of the corresponding thing in image2 relative to the <Z> <C> <M> <S> in image1?",
+      "How does <Z> <C> <M> <S> move from image1 to the position of the corresponding thing in image2?"
     ],
     "params": [
       {"type": "Color", "name": "<C>"},
@@ -54,7 +55,8 @@
   {
     "text": [
       "How does the corresponding thing in image1 of <Z2> <C2> <M2> <S2> move from image2?",
-      "What is the position of the corresponding thing in image1 relative to the <Z2> <C2> <M2> <S2> in image2?"
+      "What is the position of the corresponding thing in image1 relative to the <Z2> <C2> <M2> <S2> in image2?",
+      "How does <Z2> <C2> <M2> <S2> move from image2 to the position of the corresponding thing in image1?"
     ],
     "params": [
       {"type": "Color", "name": "<C2>"},
