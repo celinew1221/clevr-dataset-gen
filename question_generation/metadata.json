@@ -19,6 +19,10 @@
     ],
     "Material": [
       "rubber", "metal"
+    ],
+    "Mrelation": [
+      "left", "right", "behind", "front", "front, left", "front, right",
+      "behind, left", "behind, right"
     ]
   },
   "functions": [
@@ -101,6 +105,12 @@
       "terminal": true
     },
     {
+      "name": "query_color_change",
+      "inputs": ["Objects"],
+      "output": "Color",
+      "terminal": true
+    },
+    {
       "name": "query_size",
       "inputs": ["Object"],
       "output": "Size",
@@ -113,8 +123,20 @@
       "terminal": true
     },
     {
+      "name": "query_material_change",
+      "inputs": ["Objects"],
+      "output": "Material",
+      "terminal": true
+    },
+    {
       "name": "exist",
       "inputs": ["ObjectSet"],
+      "output": "Bool",
+      "terminal": true
+    },
+    {
+      "name": "equal",
+      "inputs": ["Bool", "Bool"],
       "output": "Bool",
       "terminal": true
     },
@@ -253,6 +275,12 @@
       "output": "Bool",
       "terminal": false,
       "template_only": true
+    },
+    {
+      "name": "find_relate",
+      "inputs": ["ObjectSet"],
+      "output": "Mrelation",
+      "terminal": true
     }
   ]
 }
