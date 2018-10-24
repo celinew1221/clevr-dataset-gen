@@ -289,6 +289,8 @@ def main(args):
   with open(args.output_count_file, 'w') as f:
     json.dump(counts, f)
 
+  render_log.off()
+
 
 def render_scene(args,
     num_objects=5,
@@ -573,9 +575,7 @@ def render_scene_with_action(args,
 
     while True:
       try:
-        render_log.on()
         bpy.ops.render.render(write_still=True)
-        render_log.off()
         break
       except Exception as e:
         logger.warning(e)
@@ -584,9 +584,7 @@ def render_scene_with_action(args,
       json.dump(scene_struct_action, f, indent=2)
 
     if output_blendfile is not None:
-      render_log.on()
       bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
-      render_log.off()
 
     #############################################################
     # Generate a combined scene json file for question generating
@@ -1089,9 +1087,7 @@ def render_shadeless(blender_objects, path='flat.png'):
     obj.data.materials[0] = mat
 
   # Render the scene
-  render_log.on()
   bpy.ops.render.render(write_still=True)
-  render_log.off()
 
   # Undo the above; first restore the materials to objects
   for mat, obj in zip(old_materials, blender_objects):
