@@ -41,8 +41,7 @@ us to efficiently prune the search space and terminate early when we know that
 """
 
 
-
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
 
 # Inputs
 parser.add_argument('--input_scene_file', default='../output/CLEVR_scenes.json',
@@ -54,6 +53,8 @@ parser.add_argument('--synonyms_json', default='synonyms.json',
     help="JSON file defining synonyms for parameter values")
 parser.add_argument('--template_dir', default='CLEVR_1.0_templates',
     help="Directory containing JSON templates for questions")
+parser.add_argument('--action_template_dir', default='CLEVR_action_templates',
+    help="Directory containing JSON tempaltes for action questions")
 
 # Output
 parser.add_argument('--output_questions_file',
@@ -88,7 +89,11 @@ parser.add_argument('--time_dfs', action='store_true',
     help="Time each depth-first search; must be given with --verbose")
 parser.add_argument('--profile', action='store_true',
     help="If given then run inside cProfile")
+parser.add_argument('--action', default=0, type=int,
+    help="Generate action related questions based on action templates.")
 # args = parser.parse_args()
+SIZE_CHANGED, SIZE_UNCHANGED, COLOR_CHANGED, COLOR_UNCHANGED, MAT_CHANGED, MAT_UNCHANGED \
+  = "size_changed", "size_unchanged", "color_changed", "color_unchanged", "mat_changed", "mat_unchanged"
 
 
 def precompute_filter_options(scene_struct, metadata):
@@ -227,8 +232,9 @@ def other_heuristic(text, param_vals):
     v1 = param_vals.get(k1, None)
     v2 = param_vals.get(k2, None)
     if v1 != '' and v2 != '' and v1 != v2:
-      print('other has got to go! %s = %s but %s = %s'
-            % (k1, v1, k2, v2))
+      if args.verbose:
+          print('other has got to go! %s = %s but %s = %s'
+                % (k1, v1, k2, v2))
       remove_other = True
       break
   if remove_other:
@@ -496,7 +502,143 @@ def instantiate_templates_dfs(scene_struct, template, metadata, answer_counts,
 
   return text_questions, structured_questions, answers
 
+def instantiate_templates(scene_struct, template, metadata, answer_counts,
+                          synonyms, verbose=False):
 
+  # Note: only work with one question / template
+  param_name_to_type = {p['name']: p['type'] for p in template['params']}
+
+  # Note: this only works on one object and one property change
+  final_node = template['nodes'][-1]
+  final_node_type = final_node['type']
+  type_of_change = scene_struct['changes']['type']
+  objs = [scene_struct['changes']['obj'], scene_struct['changes']['cobj']]
+  def get_obj_id(param_name):
+    if '2' in param_name:
+      return 1
+    else:
+      return 0
+  def get_opp_obj_id(param_name):
+    if '2' in param_name:
+      return 0
+    else:
+      return 1
+  def find_true_relation(obj):
+    relations = []
+    for r in ['behind', 'front', 'left', 'right']:
+      if obj[r]:
+        relations.append(r)
+    return ','.join(relations)
+  def gen_relations():
+    relations = [random.choice(['behind', 'front']), random.choice(['left', 'right'])]
+    return ','.join(relations)
+
+  answer = None
+  vals = {}
+  has_changed = True if type_of_change in [COLOR_CHANGED, MAT_CHANGED, SIZE_CHANGED] else False
+  relate_changed = True if type_of_change == SIZE_CHANGED else False
+
+  # work on color/material/relate template
+  if final_node_type == "exist":
+    # question if change exists
+    answer = True if has_changed else False
+
+  # work on color/material/relate template
+  elif final_node_type == "equal" and has_changed:
+    # question if the two objects are the ones that change
+    # generate answer - True/False
+    answer = random.choice([True, False])
+    if answer == True:
+      if not relate_changed:
+        # generate true question
+        for name, type in param_name_to_type.items():
+          vals[name] = objs[get_obj_id(name)][type.lower()]
+      else:
+        # generate true question for relate changed
+        for name, type in param_name_to_type.items():
+          vals[name] = find_true_relation(objs[get_obj_id(name)])
+    else:
+      # generate false question
+      # get list of possible params from type
+      type = list(param_name_to_type.values())[0]
+      list_of_params = metadata['types'][type]
+      random.shuffle(list_of_params)
+      [p1, p2] = param_name_to_type.keys()
+      # keep generating questions until have a sucess
+      while True:
+        if not relate_changed:
+          vals[p1] = random.choice(list_of_params)
+          vals[p2] = random.choice(list_of_params)
+          if vals[p1] != vals[p2] and (vals[p1] != objs[get_obj_id(p1)][type.lower()] or
+                                       vals[p2] != objs[get_obj_id(p2)][type.lower()]):
+            # generated a valid question with two different obj and
+            # at least one of them does not match the original property ==> False question
+            break
+        else:
+          vals[p1] = gen_relations()
+          vals[p2] = gen_relations()
+          if vals[p1] != vals[p2] and (vals[p1] != find_true_relation(objs[get_obj_id(p1)]) or
+                                       vals[p2] != find_true_relation(objs[get_obj_id(p2)])):
+            # generated a valid question with two different obj and
+            # at least one of them does not match the original property ==> False question
+            break
+
+
+  elif (not relate_changed or final_node_type == "find_relate") and has_changed:
+    # question query what property this object changes to (e.g. query_*_change and find_relate)
+    param = final_node['side_inputs'][0]
+    type = param_name_to_type[param]
+
+    if not relate_changed:
+      # the answer will be the other object's property of the object
+      answer = objs[get_opp_obj_id(param)][type.lower()]
+    else:
+      answer = find_true_relation(objs[get_obj_id(param)])
+
+    # generate question by assigning property to <C> <Z> <S> <M>
+    for name, type in param_name_to_type.items():
+      # use name to determine which object then use type to find its value
+      vals[name] = objs[get_obj_id(name)][type.lower()]
+
+  elif relate_changed:
+    # question that query property of the moved object
+    type = final_node_type.split("_")[1]
+    answer = objs[0][type]
+
+  text_questions, structured_questions, answers = [], [], []
+  if answer is not None:
+    # once got the question and answer, use rejection sampling to accept/reject question
+    # Use our rejection sampling heuristics to decide whether we should
+    # keep this template instantiation
+    accept = True
+    cur_answer_count = answer_counts[answer]
+    answer_counts_sorted = sorted(answer_counts.values())
+    median_count = answer_counts_sorted[len(answer_counts_sorted) // 2]
+    median_count = max(median_count, 5)
+    if cur_answer_count > 1.1 * answer_counts_sorted[-2]:
+      if verbose: print('skipping due to second count')
+      accept = False
+    if cur_answer_count > 5.0 * median_count:
+      if verbose: print('skipping due to median')
+      accept = False
+
+    if accept:
+      answer_counts[answer] += 1
+      # Actually instantiate the template with the solutions we've found
+      structured_questions.append(template['nodes'])
+      answers.append(answer)
+      text = random.choice(template['text'])
+      for name, val in vals.items():
+        if val in synonyms:
+          val = random.choice(synonyms[val])
+        text = text.replace(name, val)
+        text = ' '.join(text.split())
+      text = replace_optionals(text)
+      text = ' '.join(text.split())
+      text = other_heuristic(text, vals)
+      text_questions.append(text)
+
+  return text_questions, structured_questions, answers
 
 def replace_optionals(s):
   """
@@ -530,12 +672,15 @@ def replace_optionals(s):
 
 
 def main(args):
+  ############################################
+  # Load required data for question generation
+  ############################################
   with open(args.metadata_file, 'r') as f:
     metadata = json.load(f)
     dataset = metadata['dataset']
     if dataset != 'CLEVR-v1.0':
       raise ValueError('Unrecognized dataset "%s"' % dataset)
-  
+
   functions_by_name = {}
   for f in metadata['functions']:
     functions_by_name[f['name']] = f
@@ -545,9 +690,10 @@ def main(args):
   # Key is (filename, file_idx)
   num_loaded_templates = 0
   templates = {}
-  for fn in os.listdir(args.template_dir):
+  template_dir = args.action_template_dir if args.action else args.template_dir
+  for fn in os.listdir(template_dir):
     if not fn.endswith('.json'): continue
-    with open(os.path.join(args.template_dir, fn), 'r') as f:
+    with open(os.path.join(template_dir, fn), 'r') as f:
       base = os.path.splitext(fn)[0]
       for i, template in enumerate(json.load(f)):
         num_loaded_templates += 1
@@ -597,66 +743,163 @@ def main(args):
   with open(args.synonyms_json, 'r') as f:
     synonyms = json.load(f)
 
-  questions = []
-  scene_count = 0
-  for i, scene in enumerate(all_scenes):
-    scene_fn = scene['image_filename']
-    scene_struct = scene
-    print('starting image %s (%d / %d)'
-          % (scene_fn, i + 1, len(all_scenes)))
+  #############################
+  # Regular question generation
+  #############################
+  if not args.action:
+    questions = []
+    scene_count = 0
+    for i, scene in enumerate(all_scenes):
+      scene_fn = scene['image_filename']
+      scene_struct = scene
+      print('starting image %s (%d / %d)'
+            % (scene_fn, i + 1, len(all_scenes)))
 
-    if scene_count % args.reset_counts_every == 0:
-      print('resetting counts')
-      template_counts, template_answer_counts = reset_counts()
-    scene_count += 1
+      if scene_count % args.reset_counts_every == 0:
+        print('resetting counts')
+        template_counts, template_answer_counts = reset_counts()
+      scene_count += 1
 
-    # Order templates by the number of questions we have so far for those
-    # templates. This is a simple heuristic to give a flat distribution over
-    # templates.
-    templates_items = list(templates.items())
-    templates_items = sorted(templates_items,
-                        key=lambda x: template_counts[x[0][:2]])
-    num_instantiated = 0
-    for (fn, idx), template in templates_items:
-      if args.verbose:
-        print('trying template ', fn, idx)
-      if args.time_dfs and args.verbose:
-        tic = time.time()
-      ts, qs, ans = instantiate_templates_dfs(
-                      scene_struct,
-                      template,
-                      metadata,
-                      template_answer_counts[(fn, idx)],
-                      synonyms,
-                      max_instances=args.instances_per_template,
-                      verbose=False)
-      if args.time_dfs and args.verbose:
-        toc = time.time()
-        print('that took ', toc - tic)
-      image_index = int(os.path.splitext(scene_fn)[0].split('_')[-1])
-      for t, q, a in zip(ts, qs, ans):
-        questions.append({
-          'split': scene_info['split'],
-          'image_filename': scene_fn,
-          'image_index': image_index,
-          'image': os.path.splitext(scene_fn)[0],
-          'question': t,
-          'program': q,
-          'answer': a,
-          'template_filename': fn,
-          'question_family_index': idx,
-          'question_index': len(questions),
-        })
-      if len(ts) > 0:
+      # Order templates by the number of questions we have so far for those
+      # templates. This is a simple heuristic to give a flat distribution over
+      # templates.
+      templates_items = list(templates.items())
+      templates_items = sorted(templates_items,
+                          key=lambda x: template_counts[x[0][:2]])
+      num_instantiated = 0
+      for (fn, idx), template in templates_items:
         if args.verbose:
-          print('got one!')
-        num_instantiated += 1
-        template_counts[(fn, idx)] += 1
-      elif args.verbose:
-        print('did not get any =(')
-      if num_instantiated >= args.templates_per_image:
-        break
+          print('trying template ', fn, idx)
+        if args.time_dfs and args.verbose:
+          tic = time.time()
+        ts, qs, ans = instantiate_templates_dfs(
+                        scene_struct,
+                        template,
+                        metadata,
+                        template_answer_counts[(fn, idx)],
+                        synonyms,
+                        max_instances=args.instances_per_template,
+                        verbose=False)
+        if args.time_dfs and args.verbose:
+          toc = time.time()
+          print('that took ', toc - tic)
+        image_index = int(os.path.splitext(scene_fn)[0].split('_')[-1])
+        for t, q, a in zip(ts, qs, ans):
+          questions.append({
+            'split': scene_info['split'],
+            'image_filename': scene_fn,
+            'image_index': image_index,
+            'image': os.path.splitext(scene_fn)[0],
+            'question': t,
+            'program': q,
+            'answer': a,
+            'template_filename': fn,
+            'question_family_index': idx,
+            'question_index': len(questions),
+          })
+        if len(ts) > 0:
+          if args.verbose:
+            print('got one!')
+          num_instantiated += 1
+          template_counts[(fn, idx)] += 1
+        elif args.verbose:
+          print('did not get any =(')
+        if num_instantiated >= args.templates_per_image:
+          break
+  ############################
+  # Action question generation
+  ############################
+  else:
+    questions = []
+    scene_count = 0
+    for i, scene in enumerate(all_scenes):
+      scene_fn = scene['image_filename']
+      scene_struct = scene
+      print('starting image %s (%d / %d)' % (scene_fn, i + 1, len(all_scenes)))
 
+      if scene_count % args.reset_counts_every == 0:
+        print('resetting counts')
+        template_counts, template_answer_counts = reset_counts()
+      scene_count += 1
+
+      # Note: this only works for one object with one property changed
+      # TODO: Generalize this to more than one changes
+      change_name = scene['changes']['type']
+      # Hard-coded template selection based on the type of changes
+      if change_name == SIZE_UNCHANGED or change_name == SIZE_CHANGED:
+        tn = 'relate_change.json'
+      elif change_name == COLOR_UNCHANGED or change_name == COLOR_CHANGED:
+        tn = 'color_change.json'
+      else:
+        tn = 'mat_change.json'
+
+      # Order templates by the number of questions we have so far for those
+      # templates. This is a simple heuristic to give a flat distribution over
+      # templates.
+      templates_items = list(templates.items())
+      templates_items = sorted(templates_items,
+                               key=lambda x: template_counts[x[0][:2]])
+      num_instantiated = 0
+      for (fn, idx), template in templates_items:
+        if fn != tn: continue
+        # matches selected template files
+        if args.verbose:
+          print('trying template ', fn, idx)
+
+        if args.time_dfs and args.verbose:
+          tic = time.time()
+
+        ts, qs, ans = instantiate_templates(
+          scene_struct,
+          template,
+          metadata,
+          template_answer_counts[(fn, idx)],
+          synonyms,
+          verbose=False)
+
+        if args.time_dfs and args.verbose:
+          toc = time.time()
+          print('that took ', toc - tic)
+
+        image_index = int(os.path.splitext(scene_fn)[0].split('_')[-1])
+
+        for t, q, a in zip(ts, qs, ans):
+          questions.append({
+            'split': scene_info['split'],
+            'cor_split': scene_struct['cor_split'],
+            'image_filename': scene_fn,
+            'cor_image_filename': scene_struct['cor_image_filename'],
+            'image_index': image_index,
+            'image': os.path.splitext(scene_fn)[0],
+            'cor_image': os.path.splitext(scene_struct['cor_image_filename'])[0],
+            'question': t,
+            'program': q,
+            'answer': a,
+            'template_filename': fn,
+            'question_family_index': idx,
+            'question_index': len(questions),
+          })
+
+        if len(ts) > 0:
+          if args.verbose:
+            print('got one!')
+          num_instantiated += 1
+          template_counts[(fn, idx)] += 1
+        elif args.verbose:
+          print('did not get any =(')
+        if num_instantiated >= args.templates_per_image:
+          break
+  print("template_counts")
+  print("answer_counts")
+  for k in sorted(template_counts.keys()):
+      print(k, template_counts[k])
+  print("answer_counts")
+  for k in sorted(template_answer_counts.keys()):
+      print(k, template_answer_counts[k])
+
+  ##########################################
+  # Post-processing questions and save them
+  ##########################################
   # Change "side_inputs" to "value_inputs" in all functions of all functional
   # programs. My original name for these was "side_inputs" but I decided to
   # change the name to "value_inputs" for the public CLEVR release. I should
@@ -683,7 +926,6 @@ def main(args):
         'info': scene_info,
         'questions': questions,
       }, f)
-
 
 if __name__ == '__main__':
   args = parser.parse_args()
