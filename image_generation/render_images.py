@@ -248,8 +248,10 @@ def main(args):
         output_blendfile=blend_path
       )
     end = time.time()
-    logger.info("NUMBER OF IMAGES PROCESSED: %i / %i ---- Time_Per_Image %s, Time in Total: %s"
-                % (i+1, args.num_images, str(td(seconds=int(end - start))), str(td(seconds=int(end - main_start)))))
+    logger.info("NUMBER OF IMAGES PROCESSED: %i / %i ---- Time_Per_Image %s, Avg_Per_Image %s, Time in Total: %s"
+                % (i+1, args.num_images, str(td(seconds=int(end - start))),
+                   str(td(seconds=int((end - main_start) / (i+1) * 100)) // 100),
+                   str(td(seconds=int(end - main_start)))))
 
   # After rendering all images, combine the JSON files for each scene into a
   # single JSON file.
