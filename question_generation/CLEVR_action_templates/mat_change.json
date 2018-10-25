@@ -29,7 +29,8 @@
       {"type": "Color", "name": "<C>"},
       {"type": "Size", "name": "<Z>"},
       {"type": "Relation", "name": "<R>"},
-      {"type": "Shape", "name": "<S>"}
+      {"type": "Shape", "name": "<S>"},
+      {"type": "Material", "name": "<M>"}
     ],
     "nodes": [
       {"type": "scene_changes", "inputs": []},
@@ -48,7 +49,8 @@
       {"type": "Color", "name": "<C2>"},
       {"type": "Size", "name": "<Z2>"},
       {"type": "Relation", "name": "<R2>"},
-      {"type": "Shape", "name": "<S2>"}
+      {"type": "Shape", "name": "<S2>"},
+      {"type": "Material", "name": "<M2>"}
     ],
     "nodes": [
       {"type": "scene_changes", "inputs": []},
