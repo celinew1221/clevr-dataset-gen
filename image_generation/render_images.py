@@ -216,8 +216,8 @@ def main(args):
   all_combined_scene_paths = []
 
   count_num_images = 0
-  while count_num_images < args.num_images:
-    try:
+  try:
+    while count_num_images < args.num_images:
       i = count_num_images
       start = time.time()
       img_path = img_template
@@ -258,14 +258,14 @@ def main(args):
                        str(td(seconds=int((end - main_start) / (i+1) * 100)) // 100),
                        str(td(seconds=int(end - main_start)))))
         count_num_images += 1
-    except KeyboardInterrupt:
-      # allow random failure and keyboard interrupt to terminate
-      # so that the following can be saved in json file
-      logger.info("Exit On Ctrl C.")
-      break
-    except Exception as e:
-      logger.warning("Unexpected: %s" % traceback.format_exc())
-      break
+        with open("log.log", "a") as f:
+          f.write(str(count_num_images + args.start_idx) + "\n")
+  except KeyboardInterrupt:
+    logger.info("Exit On Ctrl C.")
+    exit()
+  except Exception as e:
+    logger.warning("Unexpected: %s" % traceback.format_exc())
+    exit()
 
   # After rendering all images, combine the JSON files for each scene into a
   # single JSON file.
@@ -435,6 +435,9 @@ def render_scene(args,
     # if fail, start with a new scene
     bpy.ops.render.render(write_still=True)
     render_success = True
+  except KeyboardInterrupt:
+    logging.info("Exit on Ctrl C")
+    exit()
   except Exception as e:
     logger.warning("Rendering Failed Due to %s" % traceback.format_exc())
 
@@ -582,6 +585,9 @@ def render_scene_with_action(args,
     # if fail, start with a new scene
     bpy.ops.render.render(write_still=True)
     render_success = True
+  except KeyboardInterrupt:
+    logging.info("Exit on Ctrl C")
+    exit()
   except Exception as e:
     logger.warning("Rendering Failed Due to %s" % traceback.format_exc())
 
@@ -630,6 +636,9 @@ def render_scene_with_action(args,
       # if fail, start with a new scene
       bpy.ops.render.render(write_still=True)
       render_success = True
+    except KeyboardInterrupt:
+      logging.info("Exit on Ctrl C")
+      exit()
     except Exception as e:
       logger.warning("Rendering Failed Due to %s" % traceback.format_exc())
 
