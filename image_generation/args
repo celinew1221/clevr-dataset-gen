@@ -1,1 +1,6 @@
-blender --background  --verbose 0 --python render_images.py -- --use_gpu 1 --height 320 --width 480 --action 1 ----start_idx 702 --num_images 5000
+--height
+320
+--width
+480
+--action
+1
