@@ -23,7 +23,8 @@
   {
     "text": [
       "What color does the <Z> <C> <M> <S> in image1 change to in image2?",
-      "What color is the corresponding thing in image2 of the <Z> <C> <M> <S> of image1?"
+      "What color is the corresponding thing in image2 of the <Z> <C> <M> <S> of image1?",
+      "What is the color of the corresponding thing in image2 of the <Z> <C> <M> <S> of image1?"
     ],
     "params": [
       {"type": "Color", "name": "<C>"},
@@ -42,7 +43,8 @@
   {
     "text": [
       "What color does the <Z2> <C2> <M2> <S2> in image2 change to in image1?",
-      "What color is the corresponding thing in image1 of the <Z2> <C2> <M2> <S2> of image2?"
+      "What color is the corresponding thing in image1 of the <Z2> <C2> <M2> <S2> of image2?",
+      "What is the color of the corresponding thing in image1 of the <Z2> <C2> <M2> <S2> of image2?"
     ],
     "params": [
       {"type": "Color", "name": "<C2>"},

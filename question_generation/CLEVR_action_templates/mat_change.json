@@ -22,13 +22,13 @@
 
   {
     "text": [
-      "What material does the <Z> <C> <S> at the <R> in image1 change to in image2?",
-      "What material is the corresponding thing in image2 of the <Z> <C> <S> at the <R> of image1?"
+      "What material does the <Z> <C> <S> in image1 change to in image2?",
+      "What material is the corresponding thing in image2 of the <Z> <C> <S> of image1?",
+      "What is the material of the corresponding thing in image2 of the <Z> <C> <S> of image1?"
     ],
     "params": [
       {"type": "Color", "name": "<C>"},
       {"type": "Size", "name": "<Z>"},
-      {"type": "Relation", "name": "<R>"},
       {"type": "Shape", "name": "<S>"},
       {"type": "Material", "name": "<M>"}
     ],
@@ -42,13 +42,13 @@
 
   {
     "text": [
-      "What material does the <Z2> <C2> <S2> at the <R2> in image2 change to in image1?",
-      "What material is the corresponding thing in image1 of the <Z2> <C2> <S2> at the <R2> of image2?"
+      "What material does the <Z2> <C2> <S2> in image2 change to in image1?",
+      "What material is the corresponding thing in image1 of the <Z2> <C2> <S2> of image2?",
+      "What is the material of the corresponding thing in image1 of the <Z2> <C2> <S2> of image2?"
     ],
     "params": [
       {"type": "Color", "name": "<C2>"},
       {"type": "Size", "name": "<Z2>"},
-      {"type": "Relation", "name": "<R2>"},
       {"type": "Shape", "name": "<S2>"},
       {"type": "Material", "name": "<M2>"}
     ],

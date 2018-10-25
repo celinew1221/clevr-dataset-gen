@@ -51,6 +51,8 @@ parser.add_argument('--metadata_file', default='metadata.json',
     help="JSON file containing metadata about functions")
 parser.add_argument('--synonyms_json', default='synonyms.json',
     help="JSON file defining synonyms for parameter values")
+parser.add_argument('--synonyms_action_json', default='synonyms_action.json',
+    help="JSON file defining synonyms for action parameter values")
 parser.add_argument('--template_dir', default='CLEVR_1.0_templates',
     help="Directory containing JSON templates for questions")
 parser.add_argument('--action_template_dir', default='CLEVR_action_templates',
@@ -753,14 +755,15 @@ def main(args):
   else:
     all_scenes = all_scenes[begin:]
 
-  # Read synonyms file
-  with open(args.synonyms_json, 'r') as f:
-    synonyms = json.load(f)
+
 
   #############################
   # Regular question generation
   #############################
   if not args.action:
+    # Read synonyms file
+    with open(args.synonyms_json, 'r') as f:
+      synonyms = json.load(f)
     questions = []
     scene_count = 0
     for i, scene in enumerate(all_scenes):
@@ -824,6 +827,9 @@ def main(args):
   # Action question generation
   ############################
   else:
+    # Read synonyms file
+    with open(args.synonyms_action_json, 'r') as f:
+      synonyms = json.load(f)
     questions = []
     scene_count = 0
     for i, scene in enumerate(all_scenes):
