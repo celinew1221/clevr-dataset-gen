@@ -1,20 +1,6 @@
 [
   {
     "text": [
-      "Is there a thing that changes material from image1 to image2?",
-      "Is there a thing that changes material between the images?"
-    ],
-    "params": [],
-    "nodes": [
-      {"type": "scene_changes", "inputs": []},
-      {"type": "filter_material_changes", "inputs": [0]},
-      {"type": "exist", "inputs": [1]}
-    ],
-    "constraints":[]
-  },
-
-  {
-    "text": [
       "Is there a thing that is <M> in image1 and is <M2> in image2?",
       "Is there a thing that is <M2> in image2 and is <M> in image1?",
       "Is there a thing that changes from <M> in image1 to <M2> in image2?",

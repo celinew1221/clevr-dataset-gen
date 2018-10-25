@@ -1,0 +1,49 @@
+[
+  {
+    "text": [
+      "Is there a thing that changes color from image1 to image2?",
+      "Is there a thing that changes color between the images?"
+    ],
+    "params": [
+      {"type": "Color", "name": "<C>"}
+    ],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_color_changes", "inputs": [0]},
+      {"type": "exist", "inputs": [1], "side_inputs": ["<C>"]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "Is there a thing that changes material from image1 to image2?",
+      "Is there a thing that changes material between the images?"
+    ],
+    "params": [
+      {"type": "Material", "name": "<M>"}
+    ],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_material_changes", "inputs": [0]},
+      {"type": "exist", "inputs": [1], "side_inputs": ["<M>"]}
+    ],
+    "constraints":[]
+  },
+
+  {
+    "text": [
+      "Is there a thing that moves in the two images?",
+      "Is there a thing that moves in [both] image1 and image2?"
+    ],
+    "params": [
+      {"type": "Relation", "name": "<R>"}
+    ],
+    "nodes": [
+      {"type": "scene_changes", "inputs": []},
+      {"type": "filter_movement_changes", "inputs": [0]},
+      {"type": "exist", "inputs": [1], "side_inputs": ["<R>"]}
+    ],
+    "constraints":[]
+  }
+]

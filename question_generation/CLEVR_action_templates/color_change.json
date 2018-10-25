@@ -1,20 +1,6 @@
 [
   {
     "text": [
-      "Is there a thing that changes color from image1 to image2?",
-      "Is there a thing that changes color between the images?"
-    ],
-    "params": [],
-    "nodes": [
-      {"type": "scene_changes", "inputs": []},
-      {"type": "filter_color_changes", "inputs": [0]},
-      {"type": "exist", "inputs": [1]}
-    ],
-    "constraints":[]
-  },
-
-  {
-    "text": [
       "Is there a thing that is <C> in image1 and is <C2> in image2?",
       "Is there a thing that is <C2> in image2 and is <C> in image1?",
       "Is there a thing that changes from <C> in image1 to <C2> in image2?",
