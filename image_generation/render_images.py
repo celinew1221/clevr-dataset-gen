@@ -43,7 +43,7 @@ if INSIDE_BLENDER:
     print("$VERSION is your Blender version (such as 2.78).")
     sys.exit(1)
 
-parser = argparse.ArgumentParser()
+parser = argparse.ArgumentParser(fromfile_prefix_chars='@')
 
 # Input options
 parser.add_argument('--base_scene_blendfile', default='data/base_scene.blend',
@@ -209,17 +209,16 @@ def main(args):
   scene_template = os.path.join(args.output_scene_dir, scene_template)
   blend_template = os.path.join(args.output_blend_dir, blend_template)
 
-  if not os.path.isdir(args.output_image_dir):
-    os.makedirs(args.output_image_dir)
-  if not os.path.isdir(args.output_scene_dir):
-    os.makedirs(args.output_scene_dir)
-  if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
-    os.makedirs(args.output_blend_dir)
+  # load base file, all scene depends on this
+  bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
 
   all_scene_paths = []
   all_combined_scene_paths = []
-  try:
-    for i in range(args.num_images):
+
+  count_num_images = 0
+  while count_num_images < args.num_images:
+    try:
+      i = count_num_images
       start = time.time()
       img_path = img_template
       scene_path = scene_template
@@ -230,39 +229,43 @@ def main(args):
       num_objects = random.randint(args.min_objects, args.max_objects)
 
       if args.action:
-        render_scene_with_action(args,
-          num_objects=num_objects,
-          output_index=(i + args.start_idx),
-          output_image=img_path,
-          output_scene=scene_path,
-          output_blendfile=blend_path,
-        )
-        all_combined_scene_paths.append(scene_path % (args.csplit, (i + args.start_idx)))
+        render_success = render_scene_with_action(args,
+                          num_objects=num_objects,
+                          output_index=(i + args.start_idx),
+                          output_image=img_path,
+                          output_scene=scene_path,
+                          output_blendfile=blend_path,
+                        )
+        if render_success:
+          all_combined_scene_paths.append(scene_path % (args.csplit, (i + args.start_idx)))
       else:
         if blend_path is not None:
           blend_path = blend_path % (args.split, (i + args.start_idx))
-        render_scene(args,
-          num_objects=num_objects,
-          output_index=(i + args.start_idx),
-          output_split=args.split,
-          output_image=img_path % (args.split, (i + args.start_idx)),
-          output_scene=scene_path % (args.split, (i + args.start_idx)),
-          output_blendfile=blend_path
-        )
+        render_success = render_scene(args,
+                          num_objects=num_objects,
+                          output_index=(i + args.start_idx),
+                          output_split=args.split,
+                          output_image=img_path % (args.split, (i + args.start_idx)),
+                          output_scene=scene_path % (args.split, (i + args.start_idx)),
+                          output_blendfile=blend_path
+                        )
       end = time.time()
-      all_scene_paths.append(scene_path % (args.split, (i + args.start_idx)))
+      if render_success:
+        all_scene_paths.append(scene_path % (args.split, (i + args.start_idx)))
 
-      logger.info("NUMBER OF IMAGES PROCESSED: %i / %i ---- Time_Per_Image %s, Avg_Per_Image %s, Time in Total: %s"
-                  % (i+1, args.num_images, str(td(seconds=int(end - start))),
-                     str(td(seconds=int((end - main_start) / (i+1) * 100)) // 100),
-                     str(td(seconds=int(end - main_start)))))
-  except KeyboardInterrupt:
-    # allow random failure and keyboard interrupt to terminate
-    # so that the following can be saved in json file
-    logging.info("Exit On Ctrl C.")
-
-  except Exception as e:
-    logger.warning(traceback.format_exc())
+        logger.info("NUMBER OF IMAGES PROCESSED: %i / %i ---- Time_Per_Image %s, Avg_Per_Image %s, Time in Total: %s"
+                    % (i+1, args.num_images, str(td(seconds=int(end - start))),
+                       str(td(seconds=int((end - main_start) / (i+1) * 100)) // 100),
+                       str(td(seconds=int(end - main_start)))))
+        count_num_images += 1
+    except KeyboardInterrupt:
+      # allow random failure and keyboard interrupt to terminate
+      # so that the following can be saved in json file
+      logger.info("Exit On Ctrl C.")
+      break
+    except Exception as e:
+      logger.warning("Unexpected: %s" % traceback.format_exc())
+      break
 
   # After rendering all images, combine the JSON files for each scene into a
   # single JSON file.
@@ -317,8 +320,11 @@ def render_scene(args,
     output_blendfile=None,
   ):
 
+  render_success = False
+
   # Load the main blendfile
-  bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
+  # bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
+  bpy.ops.wm.revert_mainfile()
 
   # Load materials
   utils.load_materials(args.material_dir)
@@ -343,12 +349,17 @@ def render_scene(args,
     else:
       cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
       cycles_prefs.compute_device_type = 'CUDA'
-      cycles_prefs.devices[0].use = True  # CPU
-
+      logger.debug("Setting GPU")
+      for d in cycles_prefs.devices:
+        logger.debug(d.name)
+      # disable all of them first
+      for d in cycles_prefs.devices:
+          d.use = False
+      # Enable CPU
+      cycles_prefs.devices[0].use = True
       assert len(args.use_gpu) < len(cycles_prefs.devices)
-
       for gpu_id in args.use_gpu:
-        cycles_prefs.devices[gpu_id + 1].use = True
+          cycles_prefs.devices[gpu_id + 1].use = True
 
   # Some CYCLES-specific stuff
   bpy.data.worlds['World'].cycles.sample_as_light = True
@@ -420,18 +431,20 @@ def render_scene(args,
   # Render the scene and dump the scene data structure
   scene_struct['objects'] = objects
   scene_struct['relationships'] = compute_all_relationships(scene_struct)
-  while True:
-    try:
-      bpy.ops.render.render(write_still=True)
-      break
-    except Exception as e:
-      logger.warning(e)
+  try:
+    # if fail, start with a new scene
+    bpy.ops.render.render(write_still=True)
+    render_success = True
+  except Exception as e:
+    logger.warning("Rendering Failed Due to %s" % traceback.format_exc())
 
-  with open(output_scene, 'w') as f:
-    json.dump(scene_struct, f, indent=2)
+  if render_success:
+    with open(output_scene, 'w') as f:
+      json.dump(scene_struct, f, indent=2)
 
-  if output_blendfile is not None:
-    bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
+    if output_blendfile is not None:
+      bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
+  return render_success
 
 
 def render_scene_with_action(args,
@@ -441,6 +454,8 @@ def render_scene_with_action(args,
     output_scene='render.json',
     output_blendfile=None,
   ):
+
+  render_success = False
   ##############################
   # Regular rendering of a scene
   ##############################
@@ -456,7 +471,8 @@ def render_scene_with_action(args,
     output_blendfile = output_blendfile % (args.split, output_index)
 
   # Load the main blendfile
-  bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
+  # bpy.ops.wm.open_mainfile(filepath=args.base_scene_blendfile)
+  bpy.ops.wm.revert_mainfile()
 
   # Load materials
   utils.load_materials(args.material_dir)
@@ -480,10 +496,17 @@ def render_scene_with_action(args,
     else:
       cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
       cycles_prefs.compute_device_type = 'CUDA'
-      cycles_prefs.devices[0].use = True  # CPU
+      logger.debug("Setting GPU")
+      for d in cycles_prefs.devices:
+        logger.debug(d.name)
+      # disable all of them first
+      for d in cycles_prefs.devices:
+          d.use = False
+      # Enable CPU
+      cycles_prefs.devices[0].use = True
       assert len(args.use_gpu) < len(cycles_prefs.devices)
       for gpu_id in args.use_gpu:
-        cycles_prefs.devices[gpu_id + 1].use = True
+          cycles_prefs.devices[gpu_id + 1].use = True
 
   # Some CYCLES-specific stuff
   bpy.data.worlds['World'].cycles.sample_as_light = True
@@ -555,23 +578,26 @@ def render_scene_with_action(args,
   # Render the scene and dump the scene data structure
   scene_struct['objects'] = objects
   scene_struct['relationships'] = compute_all_relationships(scene_struct)
-  while True:
-    try:
-      bpy.ops.render.render(write_still=True)
-      break
-    except Exception as e:
-      logger.warning(e)
+  try:
+    # if fail, start with a new scene
+    bpy.ops.render.render(write_still=True)
+    render_success = True
+  except Exception as e:
+    logger.warning("Rendering Failed Due to %s" % traceback.format_exc())
 
-  with open(output_scene, 'w') as f:
-    json.dump(scene_struct, f, indent=2)
+  if render_success:
+    with open(output_scene, 'w') as f:
+      json.dump(scene_struct, f, indent=2)
 
-  if output_blendfile is not None:
-    bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
+    if output_blendfile is not None:
+      bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
 
   #########################################################################
   # Render a second image based on the first one: only one property changed
   #########################################################################
-  if args.action:
+  # start second image only if first image succeeds
+  if args.action and render_success:
+    render_success = False
     # reset output filenames
     output_image = image_template % (args.asplit, output_index)
     output_scene = scene_template % (args.asplit, output_index)
@@ -600,95 +626,96 @@ def render_scene_with_action(args,
     scene_struct_action['objects'] = objects_action
     scene_struct_action['relationships'] = compute_all_relationships(scene_struct_action)
 
-    while True:
-      try:
-        bpy.ops.render.render(write_still=True)
-        break
-      except Exception as e:
-        logger.warning(e)
+    try:
+      # if fail, start with a new scene
+      bpy.ops.render.render(write_still=True)
+      render_success = True
+    except Exception as e:
+      logger.warning("Rendering Failed Due to %s" % traceback.format_exc())
 
-    with open(output_scene, 'w') as f:
-      json.dump(scene_struct_action, f, indent=2)
+    if render_success:
+      with open(output_scene, 'w') as f:
+        json.dump(scene_struct_action, f, indent=2)
 
-    if output_blendfile is not None:
-      bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
+      if output_blendfile is not None:
+        bpy.ops.wm.save_as_mainfile(filepath=output_blendfile)
 
-    #############################################################
-    # Generate a combined scene json file for question generating
-    #############################################################
-    # combine the two scene_structure and generate new scene_struct files
-    output_scene = scene_template % (args.csplit, output_index)
+      #############################################################
+      # Generate a combined scene json file for question generating
+      #############################################################
+      # combine the two scene_structure and generate new scene_struct files
+      output_scene = scene_template % (args.csplit, output_index)
 
-    scene_struct_combined = \
-      {'split': scene_struct['split'],
-       'image_index': output_index,
-       'image_filename': scene_struct['image_filename'],
-       'objects': scene_struct['objects'],
-       'directions': scene_struct['directions'],
-       'cor_split': scene_struct_action['split'],
-       'cor_image_filename': scene_struct_action['image_filename'],
-       'cor_objects': scene_struct_action['objects'],
-       'cor_directions': scene_struct_action['directions'],
-       'scene_change_counts': scene_change_counts}
+      scene_struct_combined = \
+        {'split': scene_struct['split'],
+         'image_index': output_index,
+         'image_filename': scene_struct['image_filename'],
+         'objects': scene_struct['objects'],
+         'directions': scene_struct['directions'],
+         'cor_split': scene_struct_action['split'],
+         'cor_image_filename': scene_struct_action['image_filename'],
+         'cor_objects': scene_struct_action['objects'],
+         'cor_directions': scene_struct_action['directions'],
+         'scene_change_counts': scene_change_counts}
 
-    # create temperary scene_struct that contains two set of objects stack tgt
-    scene_struct_combined_temps = copy.deepcopy(scene_struct_combined)
-    scene_struct_combined_temps['objects'].extend(scene_struct_combined_temps['cor_objects'])
+      # create temperary scene_struct that contains two set of objects stack tgt
+      scene_struct_combined_temps = copy.deepcopy(scene_struct_combined)
+      scene_struct_combined_temps['objects'].extend(scene_struct_combined_temps['cor_objects'])
 
-    # compute relationships of the same index
-    scene_struct_combined['relationships'] = \
-      compute_all_relationships(scene_struct_combined_temps)
+      # compute relationships of the same index
+      scene_struct_combined['relationships'] = \
+        compute_all_relationships(scene_struct_combined_temps)
 
-    # Count number of changes and generate dict for changed objects
-    # direction indicates where this object move to, 0 for no movement, 1 for movement
-    # {'type': [COLOR_CHANGED, ...],
-    #  'obj':  [{'size', 'mat', 'shape', 'color', 'left', 'right', 'behind', 'front'}],
-    #  'cobj': [{'size', 'mat', 'shape', 'color', 'left', 'right', 'behind', 'front'}],
-    #  'ids' : []}
-    changes = {'type': None, 'obj': None, 'cobj': None, 'id': None}
-    for obj_id, obj_count_dict in zip(scene_change_counts['obj_id'], scene_change_counts['counts']):
-      # only work for one obj and one property change
-      type_of_change = None
-      for (prop, num_counts) in obj_count_dict.items():
-        counts[prop] += num_counts
-        if num_counts > 0:
-          type_of_change = prop
+      # Count number of changes and generate dict for changed objects
+      # direction indicates where this object move to, 0 for no movement, 1 for movement
+      # {'type': [COLOR_CHANGED, ...],
+      #  'obj':  [{'size', 'mat', 'shape', 'color', 'left', 'right', 'behind', 'front'}],
+      #  'cobj': [{'size', 'mat', 'shape', 'color', 'left', 'right', 'behind', 'front'}],
+      #  'ids' : []}
+      changes = {'type': None, 'obj': None, 'cobj': None, 'id': None}
+      for obj_id, obj_count_dict in zip(scene_change_counts['obj_id'], scene_change_counts['counts']):
+        # only work for one obj and one property change
+        type_of_change = None
+        for (prop, num_counts) in obj_count_dict.items():
+          counts[prop] += num_counts
+          if num_counts > 0:
+            type_of_change = prop
 
-      # set up changes dict
-      if type_of_change == SIZE_UNCHANGED or type_of_change == COLOR_UNCHANGED or type_of_change == MAT_UNCHANGED:
-        changes['type'] = type_of_change
-      else:
-        changes['type'] = type_of_change
-        changes['id'] = obj_id
-        changes['obj'] = copy.deepcopy(objects[obj_id])
-        changes['cobj'] = copy.deepcopy(objects_action[obj_id])
-        index_of_cobj_combined = len(objects) + obj_id
+        # set up changes dict
+        if type_of_change == SIZE_UNCHANGED or type_of_change == COLOR_UNCHANGED or type_of_change == MAT_UNCHANGED:
+          changes['type'] = type_of_change
+        else:
+          changes['type'] = type_of_change
+          changes['id'] = obj_id
+          changes['obj'] = copy.deepcopy(objects[obj_id])
+          changes['cobj'] = copy.deepcopy(objects_action[obj_id])
+          index_of_cobj_combined = len(objects) + obj_id
 
-        for direction, relations_to_obj in scene_struct_combined['relationships'].items():
-          # replace behind with back due to when describe an object's relative position in a scene
-          # it makes more sense to use back then behind
-          if direction == 'behind':
-            direction = 'back'
+          for direction, relations_to_obj in scene_struct_combined['relationships'].items():
+            # replace behind with back due to when describe an object's relative position in a scene
+            # it makes more sense to use back then behind
+            if direction == 'behind':
+              direction = 'back'
 
-          # find out how obj moves
-          if index_of_cobj_combined in relations_to_obj[obj_id]:
-            changes['obj'][direction] = 1
-          else:
-            changes['obj'][direction] = 0
+            # find out how obj moves
+            if index_of_cobj_combined in relations_to_obj[obj_id]:
+              changes['obj'][direction] = 1
+            else:
+              changes['obj'][direction] = 0
 
-          # find out how cobj move
-          if obj_id in relations_to_obj[index_of_cobj_combined]:
-            changes['cobj'][direction] = 1
-          else:
-            changes['cobj'][direction] = 0
+            # find out how cobj move
+            if obj_id in relations_to_obj[index_of_cobj_combined]:
+              changes['cobj'][direction] = 1
+            else:
+              changes['cobj'][direction] = 0
 
-    # add changes to scene_struct_combined
-    scene_struct_combined['changes'] = changes
+      # add changes to scene_struct_combined
+      scene_struct_combined['changes'] = changes
 
 
-    with open(output_scene, 'w') as f:
-      json.dump(scene_struct_combined, f, indent=2)
-
+      with open(output_scene, 'w') as f:
+        json.dump(scene_struct_combined, f, indent=2)
+  return render_success
 
 def add_random_objects(scene_struct, num_objects, args, camera):
   """
@@ -747,7 +774,7 @@ def add_random_objects(scene_struct, num_objects, args, camera):
           assert direction_vec[2] == 0
           margin = dx * direction_vec[0] + dy * direction_vec[1]
           if 0 < margin < args.margin:
-            logger.debug("BROKEN MARGIN: %.2f %2f %s" % (margin, args.margin, direction_name))
+            print("BROKEN MARGIN: %.2f %2f %s" % (margin, args.margin, direction_name))
             margins_good = False
             break
         if not margins_good:
@@ -938,7 +965,7 @@ def modify_objects(args, number_objects, objects, blender_objects,
                 assert direction_vec[2] == 0
                 margin = dx * direction_vec[0] + dy * direction_vec[1]
                 if 0 < margin < args.margin:
-                  logger.debug("BROKEN MARGIN: %.2f %2f %s" % (margin, args.margin, direction_name))
+                  print("BROKEN MARGIN: %.2f %2f %s" % (margin, args.margin, direction_name))
                   margins_good = False
                   break
               if not margins_good:
@@ -1144,12 +1171,19 @@ if __name__ == '__main__':
     # Run normally
     argv = utils.extract_args()
     args = parser.parse_args(argv)
+    if not os.path.isdir(args.output_image_dir):
+      os.makedirs(args.output_image_dir)
+    if not os.path.isdir(args.output_scene_dir):
+      os.makedirs(args.output_scene_dir)
+    if args.save_blendfiles == 1 and not os.path.isdir(args.output_blend_dir):
+      os.makedirs(args.output_blend_dir)
+
+    render_log = LogRenderInfo('../output/blender_render.log')
     if args.debug:
       logging.basicConfig(level=logging.DEBUG)
     else:
       logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
-    render_log = LogRenderInfo('../output/blender_render.log')
     main(args)
   elif '--help' in sys.argv or '-h' in sys.argv:
     parser.print_help()
