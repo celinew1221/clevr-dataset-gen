@@ -133,6 +133,7 @@ parser.add_argument('--license',
 parser.add_argument('--date', default=dt.today().strftime("%m/%d/%Y"),
     help="String to store in the \"date\" field of the generated JSON file; " +
          "defaults to today's date")
+parser.add_argument('--log_file', default='log.log')
 
 # Rendering options
 parser.add_argument('--action', default=1, type=int,
@@ -258,7 +259,7 @@ def main(args):
                        str(td(seconds=int((end - main_start) / (i+1) * 100)) // 100),
                        str(td(seconds=int(end - main_start)))))
         count_num_images += 1
-        with open("log.log", "a") as f:
+        with open(args.log_file, "a") as f:
           f.write(str(count_num_images + args.start_idx) + "\n")
   except KeyboardInterrupt:
     logger.info("Exit On Ctrl C.")

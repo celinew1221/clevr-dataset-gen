@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 
-truncate -s 0 log.log
+truncate -s 0 $4
 
-GPU="0 1"
-blender --background --python render_images.py -- --use_gpu $GPU --start_idx $1 --num_images $2 @args
+blender --background --python render_images.py -- --use_gpu $3 --start_idx $1 --num_images $2 --log_file $4 @args
 
-start=`tail -n 1 log.log`
-rest=$(( $2 - $start ))
+start=$(tail -n 1 $4)
+rest=$(( $2 - $start + $1 ))
 
 while [[ $rest > 0 ]]
 do
-    blender --background --python render_images.py -- --use_gpu $GPU --start_idx $start --num_images $rest @args
-    start=`tail -n 1 log.log`
-    rest=$(( $2 - $start ))
+    blender --background --python render_images.py -- --use_gpu $3 --start_idx $start --num_images $rest --log_file $4 @args
+    start=$(tail -n 1 $4)
+    rest=$(( $2 - $start + $1 ))
 done
