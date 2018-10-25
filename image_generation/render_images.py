@@ -222,14 +222,13 @@ def main(args):
       start = time.time()
       img_path = img_template
       scene_path = scene_template
-      all_scene_paths.append(scene_path % (args.split, (i + args.start_idx)))
+
       blend_path = None
       if args.save_blendfiles == 1:
         blend_path = blend_template
       num_objects = random.randint(args.min_objects, args.max_objects)
 
       if args.action:
-        all_combined_scene_paths.append(scene_path % (args.csplit, (i + args.start_idx)))
         render_scene_with_action(args,
           num_objects=num_objects,
           output_index=(i + args.start_idx),
@@ -237,6 +236,7 @@ def main(args):
           output_scene=scene_path,
           output_blendfile=blend_path,
         )
+        all_combined_scene_paths.append(scene_path % (args.csplit, (i + args.start_idx)))
       else:
         if blend_path is not None:
           blend_path = blend_path % (args.split, (i + args.start_idx))
@@ -249,19 +249,26 @@ def main(args):
           output_blendfile=blend_path
         )
       end = time.time()
+      all_scene_paths.append(scene_path % (args.split, (i + args.start_idx)))
+
       logger.info("NUMBER OF IMAGES PROCESSED: %i / %i ---- Time_Per_Image %s, Avg_Per_Image %s, Time in Total: %s"
                   % (i+1, args.num_images, str(td(seconds=int(end - start))),
                      str(td(seconds=int((end - main_start) / (i+1) * 100)) // 100),
                      str(td(seconds=int(end - main_start)))))
-  except:
-    # allow random failure
+  except KeyboardInterrupt:
+    # allow random failure and keyboard interrupt to terminate
     # so that the following can be saved in json file
-    pass
+    print("Exit On Ctrl C.")
+  except Exception as e:
+    print(e)
+
   # After rendering all images, combine the JSON files for each scene into a
   # single JSON file.
   all_scenes = []
   all_combined_scenes = []
-  for scene_path, cb_scene_path in zip(all_scene_paths, all_combined_scene_paths):
+  # pick the minimum length of the two in case termination breaks in between the storage
+  length = min(len(all_scene_paths), len(all_combined_scene_paths))
+  for scene_path, cb_scene_path in zip(all_scene_paths[0:length], all_combined_scene_paths[0:length]):
     with open(scene_path, 'r') as f:
       all_scenes.append(json.load(f))
     with open(cb_scene_path, 'r') as f:
