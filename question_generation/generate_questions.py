@@ -546,8 +546,15 @@ def instantiate_templates(scene_struct, template, metadata, answer_counts,
 
   # work on color/material/relate template
   if final_node_type == "exist":
-    # question if change exists
-    answer = True if has_changed else False
+    query_property = final_node['side_inputs'][0]
+    query_type = param_name_to_type[query_property]
+
+    if (type_of_change == COLOR_CHANGED and query_type == 'Color') or \
+       (type_of_change == MAT_CHANGED and query_type == "Material") or \
+       (type_of_change == SIZE_CHANGED and query_type == "Relation"):
+      answer = True
+    else:
+      answer = False
   # work on color/material/relate template
   elif final_node_type == "equal" and has_changed:
     # question if the two objects are the ones that change
@@ -832,6 +839,10 @@ def main(args):
       # Note: this only works for one object with one property changed
       # TODO: Generalize this to more than one changes
       change_name = scene['changes']['type']
+      max_templates_per_image = args.templates_per_image
+      if change_name in [SIZE_UNCHANGED, COLOR_UNCHANGED, MAT_UNCHANGED]:
+        if max_templates_per_image > 2:
+          max_templates_per_image = 1
       # Hard-coded template selection based on the type of changes
       if change_name == SIZE_UNCHANGED or change_name == SIZE_CHANGED:
         tn = 'relate_change.json'
@@ -839,6 +850,7 @@ def main(args):
         tn = 'color_change.json'
       else:
         tn = 'mat_change.json'
+
 
       # Order templates by the number of questions we have so far for those
       # templates. This is a simple heuristic to give a flat distribution over
@@ -848,7 +860,7 @@ def main(args):
                                key=lambda x: template_counts[x[0][:2]])
       num_instantiated = 0
       for (fn, idx), template in templates_items:
-        if fn != tn: continue
+        if fn != tn and fn != "existence.json": continue
         # matches selected template files
         if args.verbose:
           print('trying template ', fn, idx)
@@ -894,7 +906,7 @@ def main(args):
           template_counts[(fn, idx)] += 1
         elif args.verbose:
           print('did not get any =(')
-        if num_instantiated >= args.templates_per_image:
+        if num_instantiated >= max_templates_per_image:
           break
   print("template_counts")
   print("answer_counts")
