@@ -545,6 +545,15 @@ def instantiate_templates(scene_struct, template, metadata, answer_counts,
   vals = {}
   has_changed = True if type_of_change in [COLOR_CHANGED, MAT_CHANGED, SIZE_CHANGED] else False
   relate_changed = True if type_of_change == SIZE_CHANGED else False
+  if relate_changed:
+    # This is a temporary fix of a bug in render_images.py
+    # TODO: Fix where (x,y,r) is saved, but it barely moved, so the change is not captured by
+    # TODO: relation computation, therefore, its tag should be SIZE_UNCHANGED
+    test = find_true_relation(objs[0])
+    if test == '':
+      type_of_change = SIZE_UNCHANGED
+      relate_changed = False
+      has_changed = False
 
   # work on color/material/relate template
   if final_node_type == "exist":
