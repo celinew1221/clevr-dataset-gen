@@ -6,7 +6,7 @@
 # of patent rights can be found in the PATENTS file in the same directory.
 
 from __future__ import print_function
-import math, sys, random, argparse, json, os, tempfile, copy, time, logging
+import math, sys, random, argparse, json, os, tempfile, copy, time, logging, traceback
 from datetime import datetime as dt
 from datetime import timedelta as td
 from collections import Counter
@@ -137,8 +137,8 @@ parser.add_argument('--date', default=dt.today().strftime("%m/%d/%Y"),
 # Rendering options
 parser.add_argument('--action', default=1, type=int,
     help="Enable action rendering.")
-parser.add_argument('--use_gpu', default=0, type=int,
-    help="Setting --use_gpu 1 enables GPU-accelerated rendering using CUDA. " +
+parser.add_argument('--use_gpu', default=None, nargs="+", type=int,
+    help="Setting --use_gpu 0,1,2 enables GPU-accelerated rendering using CUDA with 3 GPUs. " +
          "You must have an NVIDIA GPU with the CUDA toolkit installed for " +
          "to work.")
 parser.add_argument('--width', default=320, type=int,
@@ -166,6 +166,10 @@ parser.add_argument('--render_tile_size', default=256, type=int,
          "rendering may achieve better performance using smaller tile sizes " +
          "while larger tile sizes may be optimal for GPU-based rendering.")
 
+parser.add_argument("--debug", action='store_true', default=False,
+    help="If Enable, then print debugging information.")
+parser.add_argument("--render_verbose", action='store_true', default=False,
+    help="If Enable, then print debugging information.")
 
 class LogRenderInfo():
   def __init__(self, logfile):
@@ -191,13 +195,10 @@ SIZE_CHANGED, SIZE_UNCHANGED, COLOR_CHANGED, COLOR_UNCHANGED, MAT_CHANGED, MAT_U
   = "size_changed", "size_unchanged", "color_changed", "color_unchanged", "mat_changed", "mat_unchanged"
 counts = {SIZE_CHANGED: 0, SIZE_UNCHANGED: 0, COLOR_CHANGED: 0,
           COLOR_UNCHANGED: 0, MAT_CHANGED: 0, MAT_UNCHANGED: 0}
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-render_log = LogRenderInfo('../output/blender_render.log')
-
 
 def main(args):
-  render_log.on()
+  if not args.render_verbose:
+    render_log.on()
   main_start = time.time()
   num_digits = 6
   prefix = '%s_%%s_' % (args.filename_prefix)
@@ -258,9 +259,10 @@ def main(args):
   except KeyboardInterrupt:
     # allow random failure and keyboard interrupt to terminate
     # so that the following can be saved in json file
-    print("Exit On Ctrl C.")
+    logging.info("Exit On Ctrl C.")
+
   except Exception as e:
-    print(e)
+    logger.warning(traceback.format_exc())
 
   # After rendering all images, combine the JSON files for each scene into a
   # single JSON file.
@@ -302,7 +304,8 @@ def main(args):
   with open(args.output_count_file, 'w') as f:
     json.dump(counts, f)
 
-  render_log.off()
+  if not args.render_verbose:
+    render_log.off()
 
 
 def render_scene(args,
@@ -331,14 +334,21 @@ def render_scene(args,
   render_args.resolution_percentage = 100
   render_args.tile_x = args.render_tile_size
   render_args.tile_y = args.render_tile_size
-  if args.use_gpu == 1:
+
+  if args.use_gpu is not None:
     # Blender changed the API for enabling CUDA at some point
     if bpy.app.version < (2, 78, 0):
       bpy.context.user_preferences.system.compute_device_type = 'CUDA'
-      bpy.context.user_preferences.system.compute_device = 'CUDA_1'
+      bpy.context.user_preferences.system.compute_device = 'CUDA_0'
     else:
       cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
       cycles_prefs.compute_device_type = 'CUDA'
+      cycles_prefs.devices[0].use = True  # CPU
+
+      assert len(args.use_gpu) < len(cycles_prefs.devices)
+
+      for gpu_id in args.use_gpu:
+        cycles_prefs.devices[gpu_id + 1].use = True
 
   # Some CYCLES-specific stuff
   bpy.data.worlds['World'].cycles.sample_as_light = True
@@ -346,7 +356,7 @@ def render_scene(args,
   bpy.context.scene.cycles.samples = args.render_num_samples
   bpy.context.scene.cycles.transparent_min_bounces = args.render_min_bounces
   bpy.context.scene.cycles.transparent_max_bounces = args.render_max_bounces
-  if args.use_gpu == 1:
+  if args.use_gpu is not None:
     bpy.context.scene.cycles.device = 'GPU'
 
   # This will give ground-truth information about the scene and its objects
@@ -462,17 +472,18 @@ def render_scene_with_action(args,
   render_args.resolution_percentage = 100
   render_args.tile_x = args.render_tile_size
   render_args.tile_y = args.render_tile_size
-  if args.use_gpu == 1:
+  if args.use_gpu is not None:
     # Blender changed the API for enabling CUDA at some point
     if bpy.app.version < (2, 78, 0):
       bpy.context.user_preferences.system.compute_device_type = 'CUDA'
-      bpy.context.user_preferences.system.compute_device = 'CUDA_1'
+      bpy.context.user_preferences.system.compute_device = 'CUDA_0'
     else:
       cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
       cycles_prefs.compute_device_type = 'CUDA'
-      cycles_prefs.devices[0].use = True
-      cycles_prefs.devices[1].use = True
-      cycles_prefs.devices[2].use = False
+      cycles_prefs.devices[0].use = True  # CPU
+      assert len(args.use_gpu) < len(cycles_prefs.devices)
+      for gpu_id in args.use_gpu:
+        cycles_prefs.devices[gpu_id + 1].use = True
 
   # Some CYCLES-specific stuff
   bpy.data.worlds['World'].cycles.sample_as_light = True
@@ -480,7 +491,7 @@ def render_scene_with_action(args,
   bpy.context.scene.cycles.samples = args.render_num_samples
   bpy.context.scene.cycles.transparent_min_bounces = args.render_min_bounces
   bpy.context.scene.cycles.transparent_max_bounces = args.render_max_bounces
-  if args.use_gpu == 1:
+  if args.use_gpu is not None:
     bpy.context.scene.cycles.device = 'GPU'
 
   # This will give ground-truth information about the scene and its objects
@@ -1133,6 +1144,12 @@ if __name__ == '__main__':
     # Run normally
     argv = utils.extract_args()
     args = parser.parse_args(argv)
+    if args.debug:
+      logging.basicConfig(level=logging.DEBUG)
+    else:
+      logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    render_log = LogRenderInfo('../output/blender_render.log')
     main(args)
   elif '--help' in sys.argv or '-h' in sys.argv:
     parser.print_help()
