@@ -324,7 +324,7 @@ def render_scene(args,
     # Blender changed the API for enabling CUDA at some point
     if bpy.app.version < (2, 78, 0):
       bpy.context.user_preferences.system.compute_device_type = 'CUDA'
-      bpy.context.user_preferences.system.compute_device = 'CUDA_0'
+      bpy.context.user_preferences.system.compute_device = 'CUDA_1'
     else:
       cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
       cycles_prefs.compute_device_type = 'CUDA'
@@ -455,10 +455,13 @@ def render_scene_with_action(args,
     # Blender changed the API for enabling CUDA at some point
     if bpy.app.version < (2, 78, 0):
       bpy.context.user_preferences.system.compute_device_type = 'CUDA'
-      bpy.context.user_preferences.system.compute_device = 'CUDA_0'
+      bpy.context.user_preferences.system.compute_device = 'CUDA_1'
     else:
       cycles_prefs = bpy.context.user_preferences.addons['cycles'].preferences
       cycles_prefs.compute_device_type = 'CUDA'
+      cycles_prefs.devices[0].use = True
+      cycles_prefs.devices[1].use = True
+      cycles_prefs.devices[2].use = False
 
   # Some CYCLES-specific stuff
   bpy.data.worlds['World'].cycles.sample_as_light = True
