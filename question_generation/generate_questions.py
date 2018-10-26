@@ -924,10 +924,9 @@ def main(args):
         if num_instantiated >= max_templates_per_image:
           break
   print("template_counts")
-  print("answer_counts")
   for k in sorted(template_counts.keys()):
       print(k, template_counts[k])
-  print("answer_counts")
+  print("\nanswer_counts")
   for k in sorted(template_answer_counts.keys()):
       print(k, template_answer_counts[k])
 
