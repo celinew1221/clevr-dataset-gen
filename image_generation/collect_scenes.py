@@ -32,6 +32,10 @@ parser.add_argument('--action', default=1, type=int)
 parser.add_argument('--time_threshold', default=20, type=int)
 
 def renum_cb_index(args):
+  os.system("mkdir %s" % args.output_dir)
+  os.system("mkdir %s" % os.path.join(args.output_dir, "scenes"))
+  os.system("mkdir %s" % os.path.join(args.output_dir, "images"))
+
   num_digits = 6
   img_template = 'CLEVR_%%s_%%0%dd.png' % (num_digits)
   scene_template = 'CLEVR_%%s_%%0%dd.json' % (num_digits)
@@ -54,6 +58,10 @@ def renum_cb_index(args):
 
 
 def renum_index(args):
+  os.system("mkdir %s" % args.output_dir)
+  os.system("mkdir %s" % os.path.join(args.output_dir, "scenes"))
+  os.system("mkdir %s" % os.path.join(args.output_dir, "images"))
+
   num_digits = 6
   img_template = 'CLEVR_%s_%%0%dd.png' % (args.split, num_digits)
   scene_template = 'CLEVR_%s_%%0%dd.json' % (args.split, num_digits)
@@ -178,9 +186,6 @@ def validate_files(args):
 
 if __name__ == '__main__':
   args = parser.parse_args()
-  os.system("mkdir %s" % args.output_dir)
-  os.system("mkdir %s" % os.path.join(args.output_dir, "scenes"))
-  os.system("mkdir %s" % os.path.join(args.output_dir, "images"))
 
   if args.func == 'validate':
     validate_files(args)
