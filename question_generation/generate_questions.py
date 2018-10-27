@@ -6,7 +6,7 @@
 # of patent rights can be found in the PATENTS file in the same directory.
 
 from __future__ import print_function
-import argparse, json, os, itertools, random, shutil
+import argparse, json, os, itertools, random, shutil, copy
 import time
 import re
 
@@ -650,7 +650,12 @@ def instantiate_templates(scene_struct, template, metadata, answer_counts,
     if accept:
       answer_counts[answer] += 1
       # Actually instantiate the template with the solutions we've found
-      structured_questions.append(template['nodes'])
+      # Note: type is called program in other work so rename it here
+      nodes = copy.deepcopy(template['nodes'])
+      for program in nodes:
+        program['function'] = copy.deepcopy(program['type'])
+        del program['type']
+      structured_questions.append(nodes)
       answers.append(answer)
       text = random.choice(template['text'])
       for name, val in vals.items():
