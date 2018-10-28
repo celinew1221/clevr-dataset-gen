@@ -1,4 +1,4 @@
-# CLEVR Dataset Generation with "Action Identification"
+# CLEVR Dataset Generation Augmented with Action Identification
 
 This is the code developed based on the original [CLEVR dataset](http://cs.stanford.edu/people/jcjohns/clevr/) generation code. The original non-action-based dataset generation mechanism is as described in the [paper](https://github.com/facebookresearch/clevr-iep).
 
@@ -23,26 +23,24 @@ You can use this code to render synthetic images and compositional questions for
 **Q:**  There is a cylinder that is on the right side of the large yellow object behind the blue ball; is there a shiny cube in front of it? <br>
 **A:**  Yes
 
-If you find this code useful in your research, please cite the original paper
+**Q:** What color does the big red rubber cube in image1 change to in image2?
+**A:**  Blue
 
-```
-@inproceedings{johnson2017clevr,
-  title={CLEVR: A Diagnostic Dataset for Compositional Language and Elementary Visual Reasoning},
-  author={Johnson, Justin and Hariharan, Bharath and van der Maaten, Laurens
-          and Fei-Fei, Li and Zitnick, C Lawrence and Girshick, Ross},
-  booktitle={CVPR},
-  year={2017}
+**Q:** How does the big red rubber cube move from image1 to image2?
+**A:** Front Right
+
+See more examples in the template folder of `question_generation/`.
+
+If you find this code useful in your research, please cite the original paper and cite my work use this bibtex:
+@misc{celinew1221_action_clevr_2018,
+  title={CLEVR Dataset Generation Augmented with Action Identification},
+  author={Celine Wei},
+  year={2018},
+  publisher={Github},
+  journal={GitHub repository},
+  howpublished={\url{https://github.com/celinew1221/clevr-dataset-gen/}},
 }
-```
-and my work 
-```
-@inproceedings{johnson2017clevr,
-  title={},
-  author={},
-  booktitle={},
-  year={2018}
-}
-```
+
 All code was developed and tested on Ubuntu 16.04.
 
 ## Step 1: Generating Images
