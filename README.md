@@ -106,12 +106,12 @@ blender --background --python render_images.py -- --num_images 10 --action
 After this command terminates you should have ten freshly rendered images stored in `output/images` like these:
 
 <div align="center">
-  <img src="images_action/img1.png" width="260px">
-  <img src="images_action/img2.png" width="260px">
-  <img src="images_action/img3.png" width="260px">
+  <img src="images_action/img1.png" width="260px" alt="Color Change">
+  <img src="images_action/img3.png" width="260px" alt="Movement">
+  <img src="images_action/img5.png" width="260px" alt="Material Change">
   <br>
+  <img src="images_action/img2.png" width="260px">
   <img src="images_action/img4.png" width="260px">
-  <img src="images_action/img5.png" width="260px">
   <img src="images_action/img6.png" width="260px">
 </div>
 
