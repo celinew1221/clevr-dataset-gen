@@ -114,14 +114,14 @@ After this command terminates you should have ten freshly rendered images stored
   <img src="images_action/img4.png" width="260px">
   <img src="images_action/img6.png" width="260px">
   <br> 
-  <b> Color Change
-  <b> Movement
-  <b> Material Change
+  <b> Color Change, Movement, Material Change (from Left to Right) </b>
 </div>
 
-The file `output/CLEVR_cb_scenes.json` will contain ground-truth scene information for all newly rendered images.
+The image filename has a split parameter, by default "new" is the original image and "cor" is "new"'s corresponding image.
+The file `output/CLEVR_cb_scenes.json` will contain ground-truth scene information for all newly rendered images and its changes.
 
 You can find [more details about image rendering here](image_generation/README.md).
+
 
 ## Step 2: Generating Questions
 Next we generate questions, functional programs, and answers for the rendered images generated in the previous step.
