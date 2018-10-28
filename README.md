@@ -5,7 +5,7 @@ This is the code developed based on the original [CLEVR dataset](http://cs.stanf
 You can use this code to render synthetic images and compositional questions for those images, like this:
 
 <div align="center">
-  <img src="images/example1080.png" width="800px">
+  <img src="images/example1080.png" width="500px">
 </div>
 
 **Q:** How many small spheres are there? <br>
