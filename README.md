@@ -32,14 +32,16 @@ You can use this code to render synthetic images and compositional questions for
 See more examples in the template folder of `question_generation/`.
 
 If you find this code useful in your research, please cite the original paper and cite my work use this bibtex:
-`@misc{celinew1221_action_clevr_2018,
+```
+@misc{celinew1221_action_clevr_2018,
   title={CLEVR Dataset Generation Augmented with Action Identification},
   author={Celine Wei},
   year={2018},
   publisher={Github},
   journal={GitHub repository},
   howpublished={\url{https://github.com/celinew1221/clevr-dataset-gen/}},
-}`
+}
+```
 
 All code was developed and tested on Ubuntu 16.04.
 
