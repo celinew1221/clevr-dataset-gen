@@ -53,7 +53,7 @@ Each object is positioned randomly, but before actually adding the object to the
 By default images are rendered at `320x240`, but the resolution can be customized using the `--height` and `--width` flags.
 
 ### GPU Acceleration
-Rendering uses CPU by default, but if you have an NVIDIA GPU with CUDA installed then you can use the GPU to accelerate rendering by adding the flag `--use_gpu 1`. Blender also supports acceleration using OpenCL which allows the use of non-NVIDIA GPUs; however this is not currently supported by `render_images.py`.
+Rendering uses CPU by default, but if you have an NVIDIA GPU with CUDA installed then you can use the GPU to accelerate rendering by adding the flag `--use_gpu 0 1`. This uses GPU 0 and GPU 1 on your machine. Blender also supports acceleration using OpenCL which allows the use of non-NVIDIA GPUs; however this is not currently supported by `render_images.py`.
 
 ### Rendering Quality
 You can control the quality of rendering with the `--render_num_samples` flag; using fewer samples will run more quickly but will result in grainy images. I've found that 64 samples is a good number to use for development; all released CLEVR images were rendered using 512 samples. The `--render_min_bounces` and `--render_max_bounces` control the number of bounces for transparent objects; I've found the default of 8 to work well for these options.
