@@ -172,3 +172,6 @@ thing left of the sphere?"* which can be trivially answered from the text of the
 The following two constraint types are supported:
 - `NULL`: The parameter must take the value `NULL`, as in the example above.
 - `OUT_NEQ`: The outputs of the two specified nodes must have different values when the instantiated program is run. This is used for templates like *"Are there an equal number of \<Z\> \<C\> \<M\> \<S\>s and \<Z2\> \<C2\> \<M2\> \<S2\>s?"* to ensure that the two question subparts refer to different sets of objects, which avoids trivial questions like *"Are there an equal number of spheres and balls?"*.
+
+### Note on Action Question Generation
+Subject to the simplicity of the questions - 4 categories with around 5 question templates per category, the depth first search algorithm is excluded from action question generation. Rejection sampling and uniform sampling is used to generate a relatively even distribution of questions and answers among the data.
