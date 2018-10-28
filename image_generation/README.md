@@ -36,6 +36,8 @@ where `$BLENDER` is the directory where Blender is installed and `$VERSION` is y
 ```
 echo $PWD >> /Applications/blender/blender.app/Contents/Resources/2.78/python/lib/python3.5/site-packages/clevr.pth
 ```
+## Action Enable
+Use `--action 1` to enable changes generation from original images. This function only works for one object with one property change in each image.
 
 ## Rendering Overview
 The file `data/base_scene.blend` contains a Blender scene used for the basis of all CLEVR images. This scene contains a ground plane, a camera, and several light sources. After loading the base scene, the positions of the camera and lights are randomly jittered (controlled with the `--key_light_jitter`, `--fill_light_jitter`, `--back_light_jitter`, and `--camera_jitter` flags).
