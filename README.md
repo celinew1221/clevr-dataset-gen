@@ -25,10 +25,10 @@ You can use this code to render synthetic images and compositional questions for
 **Q:**  There is a cylinder that is on the right side of the large yellow object behind the blue ball; is there a shiny cube in front of it? <br>
 **A:**  Yes
 
-**Q:** What color does the big red rubber cube in image1 change to in image2?
+**Q:** What color does the big red rubber cube in image1 change to in image2? <br>
 **A:**  Blue
 
-**Q:** How does the big red rubber cube move from image1 to image2?
+**Q:** How does the big red rubber cube move from image1 to image2? <br>
 **A:** Front Right
 
 See more examples in the template folder of `question_generation/`.
