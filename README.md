@@ -2,7 +2,7 @@
 
 This is the code developed based on the original [CLEVR dataset](http://cs.stanford.edu/people/jcjohns/clevr/) generation code. The original non-action-based dataset generation mechanism is as described in the [paper](https://github.com/facebookresearch/clevr-iep).
 
-You can download the augmented CLEVR dataset [here](https://github.com/celinew1221/clevr-dataset-gen). It contains 54k training samples, 7k validation samples and 10k test samples. Each sample contains two images and a question. All questions are grouped into CLEVR_XYZ_questions.json files.
+You can download the augmented CLEVR dataset [here](https://github.com/celinew1221/clevr-dataset-gen). It contains 54k training samples, 7k validation samples and 10k test samples. Each sample contains two images and a question. All questions are grouped into CLEVR_*XYZ*_questions.json files.
 
 You can use this code to render synthetic images and compositional questions for those images, like this:
 
