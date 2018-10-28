@@ -1,6 +1,6 @@
 # CLEVR Dataset Generation with "Action Identification"
 
-This is the code developed based on the original [CLEVR dataset](http://cs.stanford.edu/people/jcjohns/clevr/) generation code. The original non-action-based dataset generation mechanism is as described in the paper [can be found here](https://github.com/facebookresearch/clevr-iep).
+This is the code developed based on the original [CLEVR dataset](http://cs.stanford.edu/people/jcjohns/clevr/) generation code. The original non-action-based dataset generation mechanism is as described in the [paper](https://github.com/facebookresearch/clevr-iep).
 
 You can use this code to render synthetic images and compositional questions for those images, like this:
 
