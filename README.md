@@ -113,6 +113,7 @@ After this command terminates you should have ten freshly rendered images stored
   <img src="images_action/img2.png" width="260px">
   <img src="images_action/img4.png" width="260px">
   <img src="images_action/img6.png" width="260px">
+  "From left to right is color change, movement and material change"
 </div>
 
 The file `output/CLEVR_cb_scenes.json` will contain ground-truth scene information for all newly rendered images.
